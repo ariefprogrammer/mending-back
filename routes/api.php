@@ -3,6 +3,8 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\OutletController;
 use App\Http\Controllers\Api\V1\OutletCashBookController;
+use App\Http\Controllers\Api\V1\RevenueCategoryController;
+use App\Http\Controllers\Api\V1\CostCategoryController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -25,6 +27,18 @@ Route::prefix('v1')->group(function () {
         Route::post('outlets/{outletId}/cash-books', [OutletCashBookController::class, 'store']);
         Route::put('outlets/{outletId}/cash-books/{id}', [OutletCashBookController::class, 'update']);
         Route::delete('outlets/{outletId}/cash-books/{id}', [OutletCashBookController::class, 'destroy']);
+
+        // Kategori Pendapatan
+        Route::get('outlets/{outletId}/revenue-categories', [RevenueCategoryController::class, 'index']);
+        Route::post('outlets/{outletId}/revenue-categories', [RevenueCategoryController::class, 'store']);
+        Route::put('outlets/{outletId}/revenue-categories/{id}', [RevenueCategoryController::class, 'update']);
+        Route::delete('outlets/{outletId}/revenue-categories/{id}', [RevenueCategoryController::class, 'destroy']);
+
+        // Kategori Pengeluaran
+        Route::get('outlets/{outletId}/cost-categories', [CostCategoryController::class, 'index']);
+        Route::post('outlets/{outletId}/cost-categories', [CostCategoryController::class, 'store']);
+        Route::put('outlets/{outletId}/cost-categories/{id}', [CostCategoryController::class, 'update']);
+        Route::delete('outlets/{outletId}/cost-categories/{id}', [CostCategoryController::class, 'destroy']);
     });
 
 });
