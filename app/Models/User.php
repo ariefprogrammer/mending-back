@@ -8,10 +8,11 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens; 
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable; 
+    use HasApiTokens, HasFactory, Notifiable, HasUuids; 
 
     protected $fillable = [
         'name',
@@ -21,6 +22,9 @@ class User extends Authenticatable
         'role',     
         'owner_id', 
     ];
+
+    public $incrementing = false;
+    protected $keyType = 'string';
 
     protected $hidden = [
         'password',

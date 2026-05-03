@@ -15,11 +15,18 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            RegionSeeder::class,
+            UnitSeeder::class,
+            ServiceUnitSeeder::class,
         ]);
+
+        if (app()->environment('local')) {
+            User::factory()->create([
+                'name' => 'Admin Laundry',
+                'email' => 'admin@example.com',
+                'password' => bcrypt('password'),
+            ]);
+        }
     }
 }

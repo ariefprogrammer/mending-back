@@ -5,6 +5,10 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Outlet;
+use App\Models\Province;
+use App\Models\Kabupaten;
+use App\Models\Kecamatan;
+use App\Models\Kelurahan;
 use Illuminate\Support\Facades\Validator;
 
 class OutletController extends Controller
@@ -13,7 +17,10 @@ class OutletController extends Controller
     {
         $user = auth('sanctum')->user();
 
-        $outlets = Outlet::where('user_id', $user->id)->latest()->get();
+        $outlets = Outlet::with(['province', 'kabupaten', 'kecamatan', 'kelurahan'])
+                ->where('user_id', $user->id)
+                ->latest()
+                ->get();
 
         return response()->json([
             'status' => 'success',
@@ -24,7 +31,9 @@ class OutletController extends Controller
 
     public function show($id)
     {
-        $outlet = Outlet::with('user')->where('id', $id)->first();
+        $outlet = Outlet::with(['user', 'province', 'kabupaten', 'kecamatan', 'kelurahan'])
+                    ->where('id', $id)
+                    ->first();
 
         if (!$outlet) {
             return response()->json([
@@ -65,30 +74,32 @@ class OutletController extends Controller
             'outlet_code' => 'required|string|unique:outlets,outlet_code',
             'name' => 'required|string|max:255',
             'phone' => 'required|string',
-            'province' => 'required',
-            'city' => 'required',
-            'kecamatan' => 'required',
-            'kelurahan' => 'required',
+            'province_id'  => 'required|exists:provinces,id',
+            'kabupaten_id' => 'required|exists:kabupatens,id',
+            'kecamatan_id' => 'required|exists:kecamatans,id',
+            'kelurahan_id' => 'required|exists:kelurahans,id',
             'address' => 'required',
+            'text_image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'blok' => 'nullable|string',
+            'rt' => 'nullable|string',
+            'rw' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
 
-        $userId = $user->id; 
+        $data = $request->all();
+        $data['user_id'] = $user->id;
 
-        $outlet = Outlet::create([
-            'outlet_code' => $request->outlet_code,
-            'name' => $request->name,
-            'user_id' => $userId, 
-            'phone' => $request->phone,
-            'province' => $request->province,
-            'city' => $request->city,
-            'kecamatan' => $request->kecamatan,
-            'kelurahan' => $request->kelurahan,
-            'address' => $request->address,
-        ]);
+        if ($request->hasFile('text_image')) {
+            $file = $request->file('text_image');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->storeAs('public/outlets', $filename); // Simpan di storage/app/public/outlets
+            $data['text_image'] = $filename; // Simpan nama filenya ke kolom text_image
+        }
+
+        $outlet = Outlet::create($data);
 
         return response()->json([
             'status' => 'success',
@@ -117,20 +128,39 @@ class OutletController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255',
-            'phone' => 'sometimes|required|string',
-            'province' => 'sometimes|required',
-            'city' => 'sometimes|required',
-            'kecamatan' => 'sometimes|required',
-            'kelurahan' => 'sometimes|required',
-            'address' => 'sometimes|required',
+            'name'         => 'sometimes|required|string|max:255',
+            'phone'        => 'sometimes|required|string',
+            'province_id'  => 'sometimes|required|exists:provinces,id',
+            'kabupaten_id' => 'sometimes|required|exists:kabupatens,id',
+            'kecamatan_id' => 'sometimes|required|exists:kecamatans,id',
+            'kelurahan_id' => 'sometimes|required|exists:kelurahans,id',
+            'address'      => 'sometimes|required',
+            'text_image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'blok'       => 'nullable|string',
+            'rt'         => 'nullable|string',
+            'rw'         => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
 
-        $outlet->update($request->all());
+        $data = $request->all();
+        
+        if ($request->hasFile('text_image')) {
+            // 1. Hapus gambar lama jika ada
+            if ($outlet->text_image) {
+                \Storage::delete('public/outlets/' . $outlet->text_image);
+            }
+
+            // 2. Simpan gambar baru
+            $file = $request->file('text_image');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->storeAs('public/outlets', $filename);
+            $data['text_image'] = $filename;
+        }
+        
+        $outlet->update($data);
 
         return response()->json([
             'status' => 'success',
@@ -194,6 +224,7 @@ class OutletController extends Controller
             'process_berurutan'         => 'required|boolean',
             'payment_first'             => 'required|boolean',
             'employee_update_data'      => 'required|boolean',
+            'nota_number'               => 'nullable|string',
             'rounding_type'             => 'nullable|string',
             'rounding_multiple'         => 'nullable|integer',
             'is_tax_enabled'            => 'required|boolean',

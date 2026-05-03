@@ -18,6 +18,7 @@ class OutletConfiguration extends Model
         'process_berurutan',
         'payment_first',
         'employee_update_data',
+        'nota_number',
         'rounding_type',
         'rounding_multiple',
         'is_tax_enabled',
