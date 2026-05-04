@@ -16,6 +16,9 @@ use App\Http\Controllers\Api\V1\RegionController;
 use App\Http\Controllers\Api\V1\PaymentMethodController;
 use App\Http\Controllers\Api\V1\RevenueController;
 use App\Http\Controllers\Api\V1\CostController;
+use App\Http\Controllers\Api\V1\EmployeeRoleController;
+use App\Http\Controllers\Api\V1\EmployeeController;
+use App\Http\Controllers\Api\V1\PermissionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -121,6 +124,31 @@ Route::prefix('v1')->group(function () {
             Route::put('/{id}',    [CostController::class, 'update']);
             Route::delete('/{id}', [CostController::class, 'destroy']);
         });
+
+        // Employee Roles
+        Route::prefix('outlets/{outletId}/employee-roles')->group(function () {
+            Route::get('/',        [EmployeeRoleController::class, 'index']);
+            Route::post('/',       [EmployeeRoleController::class, 'store']);
+            Route::get('/{id}',    [EmployeeRoleController::class, 'show']);
+            Route::put('/{id}',    [EmployeeRoleController::class, 'update']);
+            Route::delete('/{id}', [EmployeeRoleController::class, 'destroy']);
+        });
+
+        // Employees
+        Route::prefix('outlets/{outletId}/employees')->group(function () {
+            Route::get('/',        [EmployeeController::class, 'index']);
+            Route::post('/',       [EmployeeController::class, 'store']);
+            Route::get('/{id}',    [EmployeeController::class, 'show']);
+            Route::post('/{id}',   [EmployeeController::class, 'update']); // POST bukan PUT karena multipart/form-data
+            Route::delete('/{id}', [EmployeeController::class, 'destroy']);
+            Route::post('/{id}/activate', [EmployeeController::class, 'activate']);
+            Route::post('/{id}/deactivate', [EmployeeController::class, 'deactivate']);
+        });
+
+        // Permissions - global
+        Route::get('/permissions', [PermissionController::class, 'index']);
+        Route::get('/permissions/{id}', [PermissionController::class, 'show']);
+        Route::get('/permissions/module/filter', [PermissionController::class, 'byModule']);
     });
 
 });

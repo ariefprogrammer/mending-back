@@ -17,8 +17,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RegionSeeder::class,
-            UnitSeeder::class,
-            ServiceUnitSeeder::class,
+            PermissionSeeder::class,
+            SatuanSeeder::class,
         ]);
 
         if (app()->environment('local')) {
