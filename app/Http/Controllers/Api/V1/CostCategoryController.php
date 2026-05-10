@@ -13,15 +13,31 @@ class CostCategoryController extends Controller
     /**
      * Memastikan user hanya mengelola outlet miliknya sendiri.
      */
-    private function validateAccess($outletId)
+    private function checkAccess(int $outletId): bool
     {
+        // Cek apakah yang login adalah owner (dari tabel users)
         $user = auth('sanctum')->user();
-        return Outlet::where('id', $outletId)->where('user_id', $user->id)->first();
+
+        if (!$user) return false;
+
+        // Jika owner — cek apakah outlet miliknya
+        if ($user instanceof \App\Models\User) {
+            return \App\Models\Outlet::where('id', $outletId)
+                                    ->where('user_id', $user->id)
+                                    ->exists();
+        }
+
+        // Jika employee — cek apakah outlet_id di tabel employees sesuai
+        if ($user instanceof \App\Models\Employee) {
+            return (int) $user->outlet_id === (int) $outletId;
+        }
+
+        return false;
     }
 
     public function index($outletId)
     {
-        if (!$this->validateAccess($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized Access'], 403);
         }
 
@@ -34,7 +50,7 @@ class CostCategoryController extends Controller
 
     public function store(Request $request, $outletId)
     {
-        if (!$this->validateAccess($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized Access'], 403);
         }
 
@@ -60,7 +76,7 @@ class CostCategoryController extends Controller
 
     public function update(Request $request, $outletId, $id)
     {
-        if (!$this->validateAccess($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized Access'], 403);
         }
 
@@ -81,7 +97,7 @@ class CostCategoryController extends Controller
 
     public function destroy($outletId, $id)
     {
-        if (!$this->validateAccess($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['status' => 'error', 'message' => 'Unauthorized Access'], 403);
         }
 

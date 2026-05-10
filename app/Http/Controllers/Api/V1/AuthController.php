@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Models\Employee;
+use App\Models\Outlet;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -68,51 +70,92 @@ class AuthController extends Controller
     {
         // 1. Validasi Input
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
+            'email'    => 'required|email',
             'password' => 'required',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => 'error',
-                'message' => 'Validation error',
-                'errors' => $validator->errors()
+                'status'  => 'error',
+                'message' => 'Validasi gagal',
+                'errors'  => $validator->errors()
             ], 422);
         }
 
-        // 2. Cari User berdasarkan Email
+        // 2. Coba login sebagai User (Owner/Admin)
         $user = User::where('email', $request->email)->first();
 
-        // 3. Verifikasi Password
-        // Hash::check membandingkan text asli dengan hash di database
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if ($user && Hash::check($request->password, $user->password)) {
+            $user->tokens()->delete();
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            // ✅ Ambil outlet pertama milik owner
+            $outlet = $user->outlets()->first();
+            $outletId = $outlet ? $outlet->id : null;
+
             return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid credentials'
-            ], 401);
+                'status'  => 'success',
+                'message' => 'Login berhasil',
+                'data'    => [
+                    'user' => [
+                        'id'         => $user->id,
+                        'name'       => $user->name,
+                        'email'      => $user->email,
+                        'role'       => $user->role,
+                        'outlet_id'  => $outletId,  // ✅ Tambahkan outlet_id
+                        'type'       => 'owner',
+                    ],
+                    'outlet' => $outlet ? [           // ✅ Tambahkan data outlet
+                        'id'   => $outlet->id,
+                        'name' => $outlet->name,
+                    ] : null,
+                    'access_token' => $token,
+                    'token_type'   => 'Bearer',
+                ]
+            ]);
         }
 
-        // 4. Hapus token lama (Opsional, agar user hanya punya 1 token aktif/Single Device)
-        $user->tokens()->delete();
+        // 3. Coba login sebagai Employee (Karyawan)
+        $employee = Employee::where('email', $request->email)
+            ->where('is_active', true)
+            ->with('outlet:id,name') // ✅ Load relasi outlet
+            ->first();
 
-        // 5. Generate Token Baru
-        $token = $user->createToken('auth_token')->plainTextToken;
+        if ($employee && Hash::check($request->password, $employee->password)) {
+            $employee->tokens()->delete();
+            $token = $employee->createToken('employee_auth_token')->plainTextToken;
 
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Login berhasil',
+                'data'    => [
+                    'user' => [
+                        'id'             => $employee->id,
+                        'name'           => $employee->name,
+                        'email'          => $employee->email,
+                        'employee_code'  => $employee->employee_code,
+                        'role'           => $employee->role?->name,
+                        'role_id'        => $employee->role_id,
+                        'outlet_id'      => $employee->outlet_id, // ✅ Sudah ada
+                        'phone'          => $employee->phone,
+                        'type'           => 'employee',
+                    ],
+                    'outlet' => $employee->outlet ? [            // ✅ Tambahkan data outlet
+                        'id'   => $employee->outlet->id,
+                        'name' => $employee->outlet->name,
+                    ] : null,
+                    'outlet_id'     => $employee->outlet_id,     // ✅ Tambahkan outlet_id di root data
+                    'access_token'  => $token,
+                    'token_type'    => 'Bearer',
+                ]
+            ]);
+        }
+
+        // 4. Tidak ditemukan
         return response()->json([
-            'status' => 'success',
-            'message' => 'Login successful',
-            'data' => [
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->role,
-                    'owner_id' => $user->owner_id,
-                ],
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-            ]
-        ]);
+            'status'  => 'error',
+            'message' => 'Email atau password salah'
+        ], 401);
     }
 
     public function logout(Request $request)

@@ -4,10 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Customer extends Model
 {
     use HasFactory;
+
+    public $incrementing = false;
+    protected $keyType   = 'string';
 
     protected $fillable = [
         'outlet_id',
@@ -17,12 +21,22 @@ class Customer extends Model
         'email',
         'address',
         'url_address',
-        'balance'
+        'balance',
     ];
 
     protected $casts = [
-        'balance' => 'integer',
+        'balance' => 'float',
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($model) {
+            if (empty($model->id)) {
+                $model->id = Str::uuid()->toString();
+            }
+        });
+    }
 
     public function outlet()
     {

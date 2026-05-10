@@ -13,10 +13,26 @@ class RevenueCategoryController extends Controller
     /**
      * Helper untuk validasi akses outlet
      */
-    private function checkAccess($outletId)
+    private function checkAccess(int $outletId): bool
     {
+        // Cek apakah yang login adalah owner (dari tabel users)
         $user = auth('sanctum')->user();
-        return Outlet::where('id', $outletId)->where('user_id', $user->id)->exists();
+
+        if (!$user) return false;
+
+        // Jika owner — cek apakah outlet miliknya
+        if ($user instanceof \App\Models\User) {
+            return \App\Models\Outlet::where('id', $outletId)
+                                    ->where('user_id', $user->id)
+                                    ->exists();
+        }
+
+        // Jika employee — cek apakah outlet_id di tabel employees sesuai
+        if ($user instanceof \App\Models\Employee) {
+            return (int) $user->outlet_id === (int) $outletId;
+        }
+
+        return false;
     }
 
     // LIST KATEGORI

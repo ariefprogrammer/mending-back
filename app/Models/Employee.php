@@ -4,9 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\HasApiTokens;
 
 class Employee extends Model
 {
+    use HasApiTokens;
     public $incrementing = false;
     protected $keyType   = 'string';
 

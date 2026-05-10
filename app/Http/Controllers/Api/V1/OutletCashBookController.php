@@ -10,18 +10,32 @@ use Illuminate\Support\Facades\Validator;
 
 class OutletCashBookController extends Controller
 {
-    // Helper untuk validasi kepemilikan outlet (Security)
-    private function validateOutletOwnership($outletId)
+    private function checkAccess(int $outletId): bool
     {
+        // Cek apakah yang login adalah owner (dari tabel users)
         $user = auth('sanctum')->user();
-        $outlet = Outlet::where('id', $outletId)->where('user_id', $user->id)->first();
-        return $outlet;
+
+        if (!$user) return false;
+
+        // Jika owner — cek apakah outlet miliknya
+        if ($user instanceof \App\Models\User) {
+            return \App\Models\Outlet::where('id', $outletId)
+                                    ->where('user_id', $user->id)
+                                    ->exists();
+        }
+
+        // Jika employee — cek apakah outlet_id di tabel employees sesuai
+        if ($user instanceof \App\Models\Employee) {
+            return (int) $user->outlet_id === (int) $outletId;
+        }
+
+        return false;
     }
 
     // LIST: Menampilkan semua buku kas di satu outlet
     public function index($outletId)
     {
-        if (!$this->validateOutletOwnership($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['message' => 'Unauthorized or Outlet not found'], 403);
         }
 
@@ -32,7 +46,7 @@ class OutletCashBookController extends Controller
     // STORE: Membuat buku kas baru
     public function store(Request $request, $outletId)
     {
-        if (!$this->validateOutletOwnership($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -55,7 +69,7 @@ class OutletCashBookController extends Controller
     // UPDATE: Mengubah nama buku kas
     public function update(Request $request, $outletId, $id)
     {
-        if (!$this->validateOutletOwnership($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -72,7 +86,7 @@ class OutletCashBookController extends Controller
     // DELETE: Menghapus buku kas
     public function destroy($outletId, $id)
     {
-        if (!$this->validateOutletOwnership($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

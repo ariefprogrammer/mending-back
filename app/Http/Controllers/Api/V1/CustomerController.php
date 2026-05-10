@@ -5,118 +5,180 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Outlet;
 use App\Models\Customer;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class CustomerController extends Controller
 {
-    private function validateOutlet($outletId)
+    private function checkAccess(int $outletId): bool
     {
         $user = auth('sanctum')->user();
-        return Outlet::where('id', $outletId)->where('user_id', $user->id)->first();
+
+        if (!$user) return false;
+
+        if ($user instanceof \App\Models\User) {
+            return Outlet::where('id', $outletId)
+                         ->where('user_id', $user->id)
+                         ->exists();
+        }
+
+        if ($user instanceof \App\Models\Employee) {
+            return (int) $user->outlet_id === (int) $outletId;
+        }
+
+        return false;
     }
 
+    // LIST CUSTOMER
     public function index(Request $request, $outletId)
     {
-        if (!$this->validateOutlet($outletId)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
         $query = Customer::where('outlet_id', $outletId);
 
-        if ($request->has('type')) {
+        if ($request->filled('type')) {
             $query->where('customer_type', $request->type);
         }
 
-        // Fitur pencarian
-        if ($request->has('search') && $request->search != '') {
+        if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                ->orWhere('phone', 'like', "%{$search}%");
+                  ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
-        $customers = $query->latest()->get(); 
+        $customers = $query->latest()->get();
 
         return response()->json([
             'status' => 'success',
-            'data' => $customers
+            'data'   => $customers,
+        ]);
+    }
+
+    // DETAIL CUSTOMER
+    public function show($outletId, $id)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $customer = Customer::where('outlet_id', $outletId)->find($id);
+
+        if (!$customer) {
+            return response()->json(['message' => 'Customer tidak ditemukan'], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $customer,
         ]);
     }
 
     // SIMPAN CUSTOMER
     public function store(Request $request, $outletId)
     {
-        if (!$this->validateOutlet($outletId)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'customer_type' => 'required|string',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email',
-            'address' => 'nullable|string',
-            'url_address' => 'nullable|url',
-            'balance' => 'nullable|numeric'
+            'customer_type' => 'required|string|max:50',
+            'name'          => 'required|string|max:255',
+            'phone'         => 'nullable|string|max:20',
+            'email'         => 'nullable|email|max:255',
+            'address'       => 'nullable|string',
+            'url_address'   => 'nullable|url',
+            'balance'       => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
 
-        $customer = Customer::create(array_merge(
-            $request->all(),
-            ['outlet_id' => $outletId]
-        ));
+        $customer = Customer::create([
+            'outlet_id'     => $outletId,
+            'customer_type' => $request->customer_type,
+            'name'          => $request->name,
+            'phone'         => $request->phone,
+            'email'         => $request->email,
+            'address'       => $request->address,
+            'url_address'   => $request->url_address,
+            'balance'       => $request->balance ?? 0,
+        ]);
 
-        return response()->json(['status' => 'success', 'data' => $customer], 201);
-    }
-
-    // DETAIL CUSTOMER
-    public function show($outletId, $id)
-    {
-        if (!$this->validateOutlet($outletId)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $customer = Customer::where('outlet_id', $outletId)->find($id);
-
-        if (!$customer) {
-            return response()->json(['message' => 'Customer not found'], 404);
-        }
-
-        return response()->json(['status' => 'success', 'data' => $customer]);
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Customer berhasil ditambahkan',
+            'data'    => $customer,
+        ], 201);
     }
 
     // UPDATE CUSTOMER
     public function update(Request $request, $outletId, $id)
     {
-        if (!$this->validateOutlet($outletId)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
         $customer = Customer::where('outlet_id', $outletId)->find($id);
-        if (!$customer) return response()->json(['message' => 'Not Found'], 404);
 
-        $customer->update($request->all());
+        if (!$customer) {
+            return response()->json(['message' => 'Customer tidak ditemukan'], 404);
+        }
 
-        return response()->json(['status' => 'success', 'data' => $customer]);
+        $validator = Validator::make($request->all(), [
+            'customer_type' => 'sometimes|required|string|max:50',
+            'name'          => 'sometimes|required|string|max:255',
+            'phone'         => 'nullable|string|max:20',
+            'email'         => 'nullable|email|max:255',
+            'address'       => 'nullable|string',
+            'url_address'   => 'nullable|url',
+            'balance'       => 'nullable|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $customer->update([
+            'customer_type' => $request->customer_type ?? $customer->customer_type,
+            'name'          => $request->name          ?? $customer->name,
+            'phone'         => $request->phone         ?? $customer->phone,
+            'email'         => $request->email         ?? $customer->email,
+            'address'       => $request->address       ?? $customer->address,
+            'url_address'   => $request->url_address   ?? $customer->url_address,
+            'balance'       => $request->balance       ?? $customer->balance,
+        ]);
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Customer berhasil diperbarui',
+            'data'    => $customer,
+        ]);
     }
 
     // DELETE CUSTOMER
     public function destroy($outletId, $id)
     {
-        if (!$this->validateOutlet($outletId)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
         }
 
         $customer = Customer::where('outlet_id', $outletId)->find($id);
-        if (!$customer) return response()->json(['message' => 'Not Found'], 404);
+
+        if (!$customer) {
+            return response()->json(['message' => 'Customer tidak ditemukan'], 404);
+        }
 
         $customer->delete();
 
-        return response()->json(['status' => 'success', 'message' => 'Customer deleted']);
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Customer berhasil dihapus',
+        ]);
     }
 }

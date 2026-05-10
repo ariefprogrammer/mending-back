@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\V1\CostController;
 use App\Http\Controllers\Api\V1\EmployeeRoleController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\PermissionController;
+use App\Http\Controllers\Api\V1\LeaveRequestController;
+use App\Http\Controllers\EmployeeAttendanceController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -40,6 +42,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('satuans', SatuanController::class)->only(['index', 'show']);
         Route::apiResource('service-units', ServiceUnitController::class)->only(['index', 'show']);
         
+        // outlets
         Route::get('/outlets', [OutletController::class, 'index']);
         Route::get('/outlets/{id}', [OutletController::class, 'show']);
         Route::post('/outlets', [OutletController::class, 'store']);
@@ -149,6 +152,34 @@ Route::prefix('v1')->group(function () {
         Route::get('/permissions', [PermissionController::class, 'index']);
         Route::get('/permissions/{id}', [PermissionController::class, 'show']);
         Route::get('/permissions/module/filter', [PermissionController::class, 'byModule']);
+
+        // Employee Attendance
+        Route::prefix('outlets/{outletId}')->group(function () {
+        
+            Route::post('attendances/check-in', [EmployeeAttendanceController::class, 'checkIn']);
+            Route::post('attendances/{id}/overtime', [EmployeeAttendanceController::class, 'overtime']);
+            Route::post('attendances/{id}/check-out', [EmployeeAttendanceController::class, 'checkOut']);
+            Route::get('attendances', [EmployeeAttendanceController::class, 'index']);
+            Route::post('attendances', [EmployeeAttendanceController::class, 'store']);
+            Route::get('attendances/{id}', [EmployeeAttendanceController::class, 'show']);
+            Route::put('attendances/{id}', [EmployeeAttendanceController::class, 'update']);
+            Route::delete('attendances/{id}', [EmployeeAttendanceController::class, 'destroy']);
+            
+            // Presensi per employee
+            Route::prefix('employees/{employeeId}')->group(function () {
+                Route::get('attendances', [EmployeeAttendanceController::class, 'myAttendance']);
+                Route::get('attendances/today', [EmployeeAttendanceController::class, 'todayAttendance']);
+            });
+        });
+
+        // Leave Requests
+        Route::prefix('outlets/{outletId}/leave-requests')->group(function () {
+            Route::get('/',        [LeaveRequestController::class, 'index']);
+            Route::post('/',       [LeaveRequestController::class, 'store']);
+            Route::get('/{id}',    [LeaveRequestController::class, 'show']);
+            Route::put('/{id}',    [LeaveRequestController::class, 'update']);
+            Route::delete('/{id}', [LeaveRequestController::class, 'destroy']);
+        });
     });
 
 });

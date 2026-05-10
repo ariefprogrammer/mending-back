@@ -13,49 +13,75 @@ use Illuminate\Support\Facades\Validator;
 
 class OutletController extends Controller
 {
+    private function checkAccess(int $outletId): bool
+    {
+        $user = auth('sanctum')->user();
+
+        if (!$user) return false;
+
+        if ($user instanceof \App\Models\User) {
+            return \App\Models\Outlet::where('id', $outletId)
+                                    ->where('user_id', $user->id)
+                                    ->exists();
+        }
+
+        if ($user instanceof \App\Models\Employee) {
+            return (int) $user->outlet_id === (int) $outletId;
+        }
+
+        return false;
+    }
+
     public function index(Request $request)
     {
         $user = auth('sanctum')->user();
 
-        $outlets = Outlet::with(['province', 'kabupaten', 'kecamatan', 'kelurahan'])
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        if ($user instanceof \App\Models\User) {
+            $outlets = Outlet::with(['province', 'kabupaten', 'kecamatan', 'kelurahan'])
                 ->where('user_id', $user->id)
                 ->latest()
                 ->get();
+        } elseif ($user instanceof \App\Models\Employee) {
+            $outlets = Outlet::with(['province', 'kabupaten', 'kecamatan', 'kelurahan'])
+                ->where('id', $user->outlet_id)
+                ->latest()
+                ->get();
+        } else {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Daftar outlet berhasil diambil',
-            'data' => $outlets
+            'data'    => $outlets
         ]);
     }
 
     public function show($id)
     {
+        if (!$this->checkAccess((int) $id)) {
+            return response()->json(['message' => 'Akses ditolak atau Outlet tidak ditemukan'], 403);
+        }
+
         $outlet = Outlet::with(['user', 'province', 'kabupaten', 'kecamatan', 'kelurahan'])
                     ->where('id', $id)
                     ->first();
 
         if (!$outlet) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Outlet tidak ditemukan.'
             ], 404);
         }
 
-        $user = auth('sanctum')->user();
-        
-        // Memastikan user hanya bisa melihat outlet miliknya sendiri
-        if ($outlet->user_id !== $user->id) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Anda tidak memiliki akses untuk melihat outlet ini.'
-            ], 403);
-        }
-
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Detail outlet berhasil ditemukan',
-            'data' => $outlet
+            'data'    => $outlet
         ]);
     }
 
@@ -65,66 +91,69 @@ class OutletController extends Controller
 
         if (!$user) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Token tidak valid atau tidak terbaca.'
             ], 401);
         }
 
+        if ($user instanceof \App\Models\Employee) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Anda tidak memiliki akses untuk membuat outlet.'
+            ], 403);
+        }
+
         $validator = Validator::make($request->all(), [
-            'outlet_code' => 'required|string|unique:outlets,outlet_code',
-            'name' => 'required|string|max:255',
-            'phone' => 'required|string',
+            'outlet_code'  => 'required|string|unique:outlets,outlet_code',
+            'name'         => 'required|string|max:255',
+            'phone'        => 'required|string',
             'province_id'  => 'required|exists:provinces,id',
             'kabupaten_id' => 'required|exists:kabupatens,id',
             'kecamatan_id' => 'required|exists:kecamatans,id',
             'kelurahan_id' => 'required|exists:kelurahans,id',
-            'address' => 'required',
-            'text_image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-            'blok' => 'nullable|string',
-            'rt' => 'nullable|string',
-            'rw' => 'nullable|string',
+            'address'      => 'required',
+            'text_image'   => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'blok'         => 'nullable|string',
+            'rt'           => 'nullable|string',
+            'rw'           => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json($validator->errors(), 422);
         }
 
-        $data = $request->all();
-        $data['user_id'] = $user->id;
+        $data              = $request->all();
+        $data['user_id']   = $user->id;
 
         if ($request->hasFile('text_image')) {
-            $file = $request->file('text_image');
+            $file     = $request->file('text_image');
             $filename = time() . '_' . $file->getClientOriginalName();
-            $file->storeAs('public/outlets', $filename); // Simpan di storage/app/public/outlets
-            $data['text_image'] = $filename; // Simpan nama filenya ke kolom text_image
+            $file->storeAs('public/outlets', $filename);
+            $data['text_image'] = $filename;
         }
 
         $outlet = Outlet::create($data);
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Outlet created successfully',
-            'data' => $outlet
+            'data'    => $outlet
         ], 201);
     }
 
     public function update(Request $request, $id)
     {
+        if (!$this->checkAccess((int) $id)) {
+            return response()->json(['message' => 'Akses ditolak atau Outlet tidak ditemukan'], 403);
+        }
+
         $outlet = Outlet::find($id);
 
         if (!$outlet) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Outlet tidak ditemukan.'
             ], 404);
-        }
-
-        $user = auth('sanctum')->user();
-        if ($outlet->user_id !== $user->id) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Anda tidak memiliki akses untuk mengubah outlet ini.'
-            ], 403);
         }
 
         $validator = Validator::make($request->all(), [
@@ -135,10 +164,10 @@ class OutletController extends Controller
             'kecamatan_id' => 'sometimes|required|exists:kecamatans,id',
             'kelurahan_id' => 'sometimes|required|exists:kelurahans,id',
             'address'      => 'sometimes|required',
-            'text_image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-            'blok'       => 'nullable|string',
-            'rt'         => 'nullable|string',
-            'rw'         => 'nullable|string',
+            'text_image'   => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            'blok'         => 'nullable|string',
+            'rt'           => 'nullable|string',
+            'rw'           => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -146,44 +175,46 @@ class OutletController extends Controller
         }
 
         $data = $request->all();
-        
+
         if ($request->hasFile('text_image')) {
-            // 1. Hapus gambar lama jika ada
             if ($outlet->text_image) {
                 \Storage::delete('public/outlets/' . $outlet->text_image);
             }
 
-            // 2. Simpan gambar baru
-            $file = $request->file('text_image');
+            $file     = $request->file('text_image');
             $filename = time() . '_' . $file->getClientOriginalName();
             $file->storeAs('public/outlets', $filename);
             $data['text_image'] = $filename;
         }
-        
+
         $outlet->update($data);
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Outlet updated successfully',
-            'data' => $outlet
+            'data'    => $outlet
         ]);
     }
 
     public function destroy($id)
     {
+        if (!$this->checkAccess((int) $id)) {
+            return response()->json(['message' => 'Akses ditolak atau Outlet tidak ditemukan'], 403);
+        }
+
         $outlet = Outlet::find($id);
 
         if (!$outlet) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Outlet tidak ditemukan.'
             ], 404);
         }
 
         $user = auth('sanctum')->user();
-        if ($outlet->user_id !== $user->id) {
+        if ($user instanceof \App\Models\Employee) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Anda tidak memiliki otoritas untuk menghapus outlet ini.'
             ], 403);
         }
@@ -191,32 +222,29 @@ class OutletController extends Controller
         $outlet->delete();
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Outlet berhasil dihapus.'
         ]);
     }
 
     public function storeConfiguration(Request $request, $id)
     {
-        // 1. Cari outlet dan cek kepemilikan
         $outlet = Outlet::find($id);
 
         if (!$outlet) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Outlet tidak ditemukan.'
             ], 404);
         }
 
-        $user = auth('sanctum')->user();
-        if ($outlet->user_id !== $user->id) {
+        if (!$this->checkAccess((int) $id)) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Anda tidak memiliki akses untuk mengatur outlet ini.'
             ], 403);
         }
 
-        // 2. Validasi input
         $validator = Validator::make($request->all(), [
             'allow_multiple_services'   => 'required|boolean',
             'allow_duplicate_service'   => 'required|boolean',
@@ -237,55 +265,50 @@ class OutletController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-        // 3. Simpan atau Update Konfigurasi
         $configuration = $outlet->configuration()->updateOrCreate(
-            ['outlet_id' => $id], // Cari berdasarkan outlet_id
-            $request->all()       // Data yang akan diupdate/disimpan
+            ['outlet_id' => $id],
+            $request->all()
         );
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Konfigurasi outlet berhasil disimpan.',
-            'data' => $configuration
+            'data'    => $configuration
         ]);
     }
 
     public function getConfiguration($id)
     {
-        // 1. Cari outlet terlebih dahulu untuk pengecekan akses
         $outlet = Outlet::find($id);
 
         if (!$outlet) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Outlet tidak ditemukan.'
             ], 404);
         }
 
-        // 2. Pastikan user yang login adalah pemilik outlet tersebut
-        $user = auth('sanctum')->user();
-        if ($outlet->user_id !== $user->id) {
+        if (!$this->checkAccess((int) $id)) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Anda tidak memiliki akses untuk melihat konfigurasi outlet ini.'
             ], 403);
         }
 
-        // 3. Ambil data konfigurasi melalui relasi
         $configuration = $outlet->configuration;
 
         if (!$configuration) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Konfigurasi untuk outlet ini belum diatur.',
-                'data' => null
+                'data'    => null
             ], 404);
         }
 
         return response()->json([
-            'status' => 'success',
+            'status'  => 'success',
             'message' => 'Konfigurasi outlet berhasil diambil.',
-            'data' => $configuration
+            'data'    => $configuration
         ]);
     }
 }

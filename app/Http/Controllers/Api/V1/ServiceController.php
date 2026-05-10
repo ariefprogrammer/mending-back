@@ -14,17 +14,32 @@ use Illuminate\Validation\Rule;
 
 class ServiceController extends Controller
 {
-    private function validateOwnership($outletId)
+    private function checkAccess(int $outletId): bool
     {
-        return Outlet::where('id', $outletId)
-                     ->where('user_id', auth('sanctum')->id())
-                     ->exists();
+        // Cek apakah yang login adalah owner (dari tabel users)
+        $user = auth('sanctum')->user();
+
+        if (!$user) return false;
+
+        // Jika owner — cek apakah outlet miliknya
+        if ($user instanceof \App\Models\User) {
+            return \App\Models\Outlet::where('id', $outletId)
+                                    ->where('user_id', $user->id)
+                                    ->exists();
+        }
+
+        // Jika employee — cek apakah outlet_id di tabel employees sesuai
+        if ($user instanceof \App\Models\Employee) {
+            return (int) $user->outlet_id === (int) $outletId;
+        }
+
+        return false;
     }
     
     // LIST LAYANAN
     public function index(Request $request, $outletId)
     {
-        if (!$this->validateOwnership($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -44,7 +59,7 @@ class ServiceController extends Controller
     // SIMPAN LAYANAN BARU
     public function store(Request $request, $outletId)
     {
-        if (!$this->validateOwnership($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -134,7 +149,7 @@ class ServiceController extends Controller
     // UPDATE LAYANAN
     public function update(Request $request, $outletId, $id)
     {
-        if (!$this->validateOwnership($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -224,7 +239,7 @@ class ServiceController extends Controller
     // HAPUS LAYANAN
     public function destroy($outletId, $id)
     {
-        if (!$this->validateOwnership($outletId)) {
+        if (!$this->checkAccess($outletId)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

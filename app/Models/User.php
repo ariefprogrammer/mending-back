@@ -40,4 +40,15 @@ class User extends Authenticatable
     {
         return $this->role === 'superadmin'; 
     }
+
+    public function outlet()
+    {
+        return $this->belongsTo(Outlet::class, 'outlet_id');
+    }
+
+    public function outlets()
+    {
+        return $this->hasMany(Outlet::class, 'user_id');
+    }
+
 }
