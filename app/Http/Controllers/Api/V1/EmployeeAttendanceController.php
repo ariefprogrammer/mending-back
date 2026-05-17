@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use Illuminate\Http\Request;
@@ -13,10 +14,26 @@ class EmployeeAttendanceController extends Controller
     /**
      * Cek akses outlet
      */
-    private function checkAccess($outletId)
+    private function checkAccess(int $outletId): bool
     {
-        // Sesuaikan dengan logic akses Anda
-        return true;
+        // Cek apakah yang login adalah owner (dari tabel users)
+        $user = auth('sanctum')->user();
+
+        if (!$user) return false;
+
+        // Jika owner — cek apakah outlet miliknya
+        if ($user instanceof \App\Models\User) {
+            return \App\Models\Outlet::where('id', $outletId)
+                                    ->where('user_id', $user->id)
+                                    ->exists();
+        }
+
+        // Jika employee — cek apakah outlet_id di tabel employees sesuai
+        if ($user instanceof \App\Models\Employee) {
+            return (int) $user->outlet_id === (int) $outletId;
+        }
+
+        return false;
     }
 
     /**
@@ -25,10 +42,7 @@ class EmployeeAttendanceController extends Controller
     public function index(Request $request, $outletId)
     {
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         $query = EmployeeAttendance::where('outlet_id', $outletId)
@@ -71,10 +85,7 @@ class EmployeeAttendanceController extends Controller
     public function show($outletId, $id)
     {
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         $attendance = EmployeeAttendance::where('outlet_id', $outletId)
@@ -101,10 +112,7 @@ class EmployeeAttendanceController extends Controller
     public function checkIn(Request $request, $outletId)
     {
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         $validator = Validator::make($request->all(), [
@@ -193,12 +201,8 @@ class EmployeeAttendanceController extends Controller
      */
     public function overtime(Request $request, $outletId, $id)
     {
-        // ✅ Cek akses outlet
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         // ✅ Cari data presensi
@@ -274,10 +278,7 @@ class EmployeeAttendanceController extends Controller
     public function checkOut(Request $request, $outletId, $id)
     {
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         $attendance = EmployeeAttendance::where('outlet_id', $outletId)
@@ -360,11 +361,8 @@ class EmployeeAttendanceController extends Controller
      */
     public function store(Request $request, $outletId)
     {
-        if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+       if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         $validator = Validator::make($request->all(), [
@@ -445,10 +443,7 @@ class EmployeeAttendanceController extends Controller
     public function update(Request $request, $outletId, $id)
     {
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         $attendance = EmployeeAttendance::where('outlet_id', $outletId)
@@ -508,10 +503,7 @@ class EmployeeAttendanceController extends Controller
     public function myAttendance(Request $request, $outletId, $employeeId)
     {
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         // ✅ Cek apakah employee ada di outlet ini
@@ -537,21 +529,27 @@ class EmployeeAttendanceController extends Controller
         }
 
         // Filter berdasarkan bulan
-        if ($request->filled('month')) {
+        elseif ($request->filled('month')) {
             $month = $request->month;
             $year  = $request->year ?? now()->year;
             $query->whereMonth('work_date', $month)
                 ->whereYear('work_date', $year);
         }
 
-        // Filter berdasarkan tahun
-        if ($request->filled('year') && !$request->filled('month')) {
+        // Filter berdasarkan tahun saja
+        elseif ($request->filled('year')) {
             $query->whereYear('work_date', $request->year);
         }
 
         // Filter berdasarkan range tanggal
-        if ($request->filled('start_date') && $request->filled('end_date')) {
+        elseif ($request->filled('start_date') && $request->filled('end_date')) {
             $query->whereBetween('work_date', [$request->start_date, $request->end_date]);
+        }
+
+        // Default — tampilkan bulan ini saja
+        else {
+            $query->whereMonth('work_date', now()->month)
+                ->whereYear('work_date', now()->year);
         }
 
         // Filter berdasarkan status
@@ -560,9 +558,10 @@ class EmployeeAttendanceController extends Controller
         }
 
         // ✅ Order by terbaru
-        $attendances = $query->orderBy('work_date', 'desc')
-            ->orderBy('check_in', 'desc')
-            ->paginate($request->per_page ?? 20);
+        $direction = in_array($request->sort, ['asc', 'desc']) ? $request->sort : 'desc';
+        $attendances = $query->orderBy('work_date', $direction)
+            ->orderBy('check_in', $direction)
+            ->paginate($request->per_page ?? 31);
 
         // ✅ Hitung statistik
         $stats = [
@@ -601,10 +600,7 @@ class EmployeeAttendanceController extends Controller
     public function todayAttendance(Request $request, $outletId, $employeeId)
     {
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         $employee = Employee::where('id', $employeeId)
@@ -647,10 +643,7 @@ class EmployeeAttendanceController extends Controller
     public function destroy($outletId, $id)
     {
         if (!$this->checkAccess($outletId)) {
-            return response()->json([
-                'status'  => 'error',
-                'message' => 'Akses ditolak',
-            ], 403);
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
         $attendance = EmployeeAttendance::where('outlet_id', $outletId)

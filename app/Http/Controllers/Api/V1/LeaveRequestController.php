@@ -51,6 +51,7 @@ class LeaveRequestController extends Controller
 
         $query = LeaveRequest::with([
                         'employee:id,name,employee_code',
+                        'ownerReviewer:id,name',
                         'reviewer:id,name',
                         'images',
                     ])
@@ -75,7 +76,8 @@ class LeaveRequestController extends Controller
             ]);
         }
 
-        $leaveRequests = $query->orderBy('id', 'desc')->get();
+        $direction     = in_array($request->sort, ['asc', 'desc']) ? $request->sort : 'desc';
+        $leaveRequests = $query->orderBy('start_date', $direction)->get();
 
         return response()->json([
             'status' => 'success',
@@ -92,6 +94,7 @@ class LeaveRequestController extends Controller
 
         $leaveRequest = LeaveRequest::with([
                             'employee:id,name,employee_code',
+                            'ownerReviewer:id,name',
                             'reviewer:id,name',
                             'images',
                         ])
@@ -105,6 +108,262 @@ class LeaveRequestController extends Controller
         return response()->json([
             'status' => 'success',
             'data'   => $leaveRequest,
+        ]);
+    }
+
+    // MY LEAVE REQUEST (per employee)
+    public function myLeaveRequest(Request $request, $outletId, $employeeId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
+        }
+
+        // Cek apakah employee ada di outlet ini
+        $employee = \App\Models\Employee::where('id', $employeeId)
+            ->where('outlet_id', $outletId)
+            ->first();
+
+        if (!$employee) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Karyawan tidak ditemukan di outlet ini',
+            ], 404);
+        }
+
+        // Query leave request berdasarkan employee_id
+        $query = LeaveRequest::where('employee_id', $employeeId)
+            ->where('outlet_id', $outletId)
+            ->with([
+                'employee:id,name,employee_code',
+                'ownerReviewer:id,name',
+                'reviewer:id,name',
+                'images',
+            ]);
+
+        // Filter berdasarkan tanggal spesifik
+        if ($request->filled('date')) {
+            $query->whereDate('start_date', $request->date);
+        }
+
+        // Filter berdasarkan bulan
+        elseif ($request->filled('month')) {
+            $month = $request->month;
+            $year  = $request->year ?? now()->year;
+            $query->whereMonth('start_date', $month)
+                ->whereYear('start_date', $year);
+        }
+
+        // Filter berdasarkan tahun saja
+        elseif ($request->filled('year')) {
+            $query->whereYear('start_date', $request->year);
+        }
+
+        // Filter berdasarkan range tanggal
+        elseif ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween('start_date', [$request->start_date, $request->end_date]);
+        }
+
+        // Default — tampilkan bulan ini saja
+        else {
+            $query->whereMonth('start_date', now()->month)
+                ->whereYear('start_date', now()->year);
+        }
+
+        // Filter tambahan berdasarkan status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Filter tambahan berdasarkan leave_type
+        if ($request->filled('leave_type')) {
+            $query->where('leave_type', $request->leave_type);
+        }
+
+        // Sort & paginate
+        $direction    = in_array($request->sort, ['asc', 'desc']) ? $request->sort : 'desc';
+        $leaveRequests = $query->orderBy('start_date', $direction)
+            ->paginate($request->per_page ?? 15);
+
+        // Hitung statistik
+        $stats = [
+            'total_all'      => LeaveRequest::where('employee_id', $employeeId)
+                ->where('outlet_id', $outletId)
+                ->count(),
+            'total_pending'  => LeaveRequest::where('employee_id', $employeeId)
+                ->where('outlet_id', $outletId)
+                ->where('status', 'pending')
+                ->count(),
+            'total_approved' => LeaveRequest::where('employee_id', $employeeId)
+                ->where('outlet_id', $outletId)
+                ->where('status', 'approved')
+                ->count(),
+            'total_rejected' => LeaveRequest::where('employee_id', $employeeId)
+                ->where('outlet_id', $outletId)
+                ->where('status', 'rejected')
+                ->count(),
+            'this_month_approved' => LeaveRequest::where('employee_id', $employeeId)
+                ->where('outlet_id', $outletId)
+                ->whereMonth('start_date', now()->month)
+                ->whereYear('start_date', now()->year)
+                ->where('status', 'approved')
+                ->count(),
+        ];
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'employee'      => [
+                    'id'            => $employee->id,
+                    'employee_code' => $employee->employee_code,
+                    'name'          => $employee->name,
+                ],
+                'leave_requests' => $leaveRequests,
+                'statistics'     => $stats,
+            ],
+        ]);
+    }
+
+    public function allLeaveRequests(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
+        }
+
+        $query = LeaveRequest::where('outlet_id', $outletId)
+            ->with([
+                'employee:id,name,employee_code',
+                'reviewer:id,name',
+                'ownerReviewer:id,name',
+                'images',
+            ]);
+
+        // Filter berdasarkan tanggal spesifik
+        if ($request->filled('date')) {
+            $query->whereDate('start_date', $request->date);
+        }
+
+        // Filter berdasarkan bulan
+        elseif ($request->filled('month')) {
+            $month = $request->month;
+            $year  = $request->year ?? now()->year;
+            $query->whereMonth('start_date', $month)
+                ->whereYear('start_date', $year);
+        }
+
+        // Filter berdasarkan tahun saja
+        elseif ($request->filled('year')) {
+            $query->whereYear('start_date', $request->year);
+        }
+
+        // Filter berdasarkan range tanggal
+        elseif ($request->filled('start_date') && $request->filled('end_date')) {
+            $query->whereBetween('start_date', [$request->start_date, $request->end_date]);
+        }
+
+        // Default — tampilkan bulan ini saja
+        else {
+            $query->whereMonth('start_date', now()->month)
+                ->whereYear('start_date', now()->year);
+        }
+
+        // Filter tambahan berdasarkan status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        // Filter tambahan berdasarkan leave_type
+        if ($request->filled('leave_type')) {
+            $query->where('leave_type', $request->leave_type);
+        }
+
+        // Filter tambahan berdasarkan employee_id
+        if ($request->filled('employee_id')) {
+            $query->where('employee_id', $request->employee_id);
+        }
+
+        // Sort & paginate
+        $direction     = in_array($request->sort, ['asc', 'desc']) ? $request->sort : 'desc';
+        $leaveRequests = $query->orderBy('start_date', $direction)
+            ->paginate($request->per_page ?? 20);
+
+        // Statistik keseluruhan outlet
+        $stats = [
+            'total_all'      => LeaveRequest::where('outlet_id', $outletId)->count(),
+            'total_pending'  => LeaveRequest::where('outlet_id', $outletId)->where('status', 'pending')->count(),
+            'total_approved' => LeaveRequest::where('outlet_id', $outletId)->where('status', 'approved')->count(),
+            'total_rejected' => LeaveRequest::where('outlet_id', $outletId)->where('status', 'rejected')->count(),
+            'this_month_total' => LeaveRequest::where('outlet_id', $outletId)
+                ->whereMonth('start_date', now()->month)
+                ->whereYear('start_date', now()->year)
+                ->count(),
+        ];
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'leave_requests' => $leaveRequests,
+                'statistics'     => $stats,
+            ],
+        ]);
+    }
+
+    // REVIEW LEAVE REQUEST (khusus owner)
+    public function reviewLeaveRequest(Request $request, $outletId, $id)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
+        }
+
+        $user = auth('sanctum')->user();
+
+        $leaveRequest = LeaveRequest::where('outlet_id', $outletId)->find($id);
+
+        if (!$leaveRequest) {
+            return response()->json(['message' => 'Data tidak ditemukan'], 404);
+        }
+
+        if ($leaveRequest->status !== 'pending') {
+            return response()->json([
+                'message' => 'Pengajuan ini sudah diproses sebelumnya',
+            ], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|in:approved,rejected',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        // Tentukan kolom berdasarkan tipe user
+        if ($user instanceof \App\Models\User) {
+            $leaveRequest->update([
+                'status'            => $request->status,
+                'reviewed_by_owner' => $user->id,
+                'reviewed_at'       => now(),
+            ]);
+        } elseif ($user instanceof \App\Models\Employee) {
+            $leaveRequest->update([
+                'status'      => $request->status,
+                'reviewed_by' => $user->id,
+                'reviewed_at' => now(),
+            ]);
+        } else {
+            return response()->json(['message' => 'Tipe pengguna tidak dikenali'], 403);
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => $request->status === 'approved'
+                ? 'Pengajuan berhasil diterima'
+                : 'Pengajuan berhasil ditolak',
+            'data'    => $leaveRequest->load([
+                'employee:id,name,employee_code',
+                'reviewer:id,name',
+                'ownerReviewer:id,name',
+                'images',
+            ]),
         ]);
     }
 

@@ -15,6 +15,7 @@ class LeaveRequest extends Model
         'reason',
         'status',
         'reviewed_by',
+        'reviewed_by_owner',
         'reviewed_at',
     ];
 
@@ -42,5 +43,10 @@ class LeaveRequest extends Model
     public function images()
     {
         return $this->hasMany(ImageLeaveRequest::class, 'leave_request_id');
+    }
+
+    public function ownerReviewer()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'reviewed_by_owner');
     }
 }

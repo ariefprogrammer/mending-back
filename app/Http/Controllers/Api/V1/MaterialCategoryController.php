@@ -4,11 +4,11 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Outlet;
-use App\Models\ExternalOutletCostCategory;
+use App\Models\OutletMaterialCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class CostCategoryController extends Controller
+class MaterialCategoryController extends Controller
 {
     private ?bool $accessCache = null;
     private ?int $cachedOutletId = null;
@@ -29,8 +29,8 @@ class CostCategoryController extends Controller
 
         if ($user instanceof \App\Models\User) {
             return $this->accessCache = Outlet::where('id', $outletId)
-                                            ->where('user_id', $user->id)
-                                            ->exists();
+                                              ->where('user_id', $user->id)
+                                              ->exists();
         }
 
         if ($user instanceof \App\Models\Employee) {
@@ -46,7 +46,7 @@ class CostCategoryController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthorized Access'], 403);
         }
 
-        $categories = ExternalOutletCostCategory::where('outlet_id', $outletId)
+        $categories = OutletMaterialCategory::where('outlet_id', $outletId)
                         ->orderBy('id', 'desc')
                         ->get();
 
@@ -67,15 +67,15 @@ class CostCategoryController extends Controller
             return response()->json($validator->errors(), 422);
         }
 
-        $category = ExternalOutletCostCategory::create([
+        $category = OutletMaterialCategory::create([
             'outlet_id' => $outletId,
-            'name' => $request->name
+            'name'      => $request->name,
         ]);
 
         return response()->json([
-            'status' => 'success',
-            'message' => 'Kategori pengeluaran berhasil ditambahkan',
-            'data' => $category
+            'status'  => 'success',
+            'message' => 'Kategori material berhasil ditambahkan',
+            'data'    => $category
         ], 201);
     }
 
@@ -85,25 +85,26 @@ class CostCategoryController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthorized Access'], 403);
         }
 
-        $category = ExternalOutletCostCategory::where('outlet_id', $outletId)->find($id);
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $category = OutletMaterialCategory::where('outlet_id', $outletId)->find($id);
 
         if (!$category) {
             return response()->json(['status' => 'error', 'message' => 'Data tidak ditemukan'], 404);
         }
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:100',
-        ]);
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-
         $category->update(['name' => $request->name]);
 
         return response()->json([
-            'status' => 'success',
-            'message' => 'Kategori berhasil diperbarui',
-            'data' => $category
+            'status'  => 'success',
+            'message' => 'Kategori material berhasil diperbarui',
+            'data'    => $category
         ]);
     }
 
@@ -113,7 +114,7 @@ class CostCategoryController extends Controller
             return response()->json(['status' => 'error', 'message' => 'Unauthorized Access'], 403);
         }
 
-        $category = ExternalOutletCostCategory::where('outlet_id', $outletId)->find($id);
+        $category = OutletMaterialCategory::where('outlet_id', $outletId)->find($id);
 
         if (!$category) {
             return response()->json(['status' => 'error', 'message' => 'Data tidak ditemukan'], 404);
@@ -122,8 +123,8 @@ class CostCategoryController extends Controller
         $category->delete();
 
         return response()->json([
-            'status' => 'success',
-            'message' => 'Kategori pengeluaran berhasil dihapus'
+            'status'  => 'success',
+            'message' => 'Kategori material berhasil dihapus'
         ]);
     }
 }

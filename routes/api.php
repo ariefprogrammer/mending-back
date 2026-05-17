@@ -20,7 +20,8 @@ use App\Http\Controllers\Api\V1\EmployeeRoleController;
 use App\Http\Controllers\Api\V1\EmployeeController;
 use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\LeaveRequestController;
-use App\Http\Controllers\EmployeeAttendanceController;
+use App\Http\Controllers\Api\V1\EmployeeAttendanceController;
+use App\Http\Controllers\Api\V1\TransactionController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -176,9 +177,38 @@ Route::prefix('v1')->group(function () {
         Route::prefix('outlets/{outletId}/leave-requests')->group(function () {
             Route::get('/',        [LeaveRequestController::class, 'index']);
             Route::post('/',       [LeaveRequestController::class, 'store']);
+            Route::get('/all',     [LeaveRequestController::class, 'allLeaveRequests']);
             Route::get('/{id}',    [LeaveRequestController::class, 'show']);
             Route::put('/{id}',    [LeaveRequestController::class, 'update']);
+            Route::patch('/{id}/review', [LeaveRequestController::class, 'reviewLeaveRequest']);
             Route::delete('/{id}', [LeaveRequestController::class, 'destroy']);
+            Route::get('/employee/{employeeId}/my',      [LeaveRequestController::class, 'myLeaveRequest']);
+        });
+
+        // Transactions
+        Route::prefix('outlets/{outletId}/transactions')->group(function () {
+            Route::get('/',        [TransactionController::class, 'index']);
+            Route::post('/',       [TransactionController::class, 'store']);
+            Route::get('/{id}',    [TransactionController::class, 'show']);
+            Route::put('/{id}',    [TransactionController::class, 'update']);
+            Route::delete('/{id}', [TransactionController::class, 'destroy']);
+        });
+
+        // Material Categories
+        Route::prefix('outlets/{outletId}/material-categories')->group(function () {
+            Route::get('/',        [MaterialCategoryController::class, 'index']);
+            Route::post('/',       [MaterialCategoryController::class, 'store']);
+            Route::put('/{id}',    [MaterialCategoryController::class, 'update']);
+            Route::delete('/{id}', [MaterialCategoryController::class, 'destroy']);
+        });
+
+        // Materials
+        Route::prefix('v1/outlets/{outletId}/materials')->group(function () {
+            Route::get('/',        [OutletMaterialController::class, 'index']);
+            Route::get('/{id}',    [OutletMaterialController::class, 'show']);
+            Route::post('/',       [OutletMaterialController::class, 'store']);
+            Route::put('/{id}',    [OutletMaterialController::class, 'update']);
+            Route::delete('/{id}', [OutletMaterialController::class, 'destroy']);
         });
     });
 
