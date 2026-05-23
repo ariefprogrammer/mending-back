@@ -59,4 +59,25 @@ class EmployeeAttendance extends Model
     {
         return $query->whereNotNull('check_out');
     }
+
+    public function images()
+    {
+        return $this->hasMany(EmployeeAttendanceImage::class);
+    }
+
+    // Shortcut per jenis presensi
+    public function checkInImage()
+    {
+        return $this->hasOne(EmployeeAttendanceImage::class)->where('type', 'check_in');
+    }
+
+    public function overtimeImage()
+    {
+        return $this->hasOne(EmployeeAttendanceImage::class)->where('type', 'overtime');
+    }
+
+    public function checkOutImage()
+    {
+        return $this->hasOne(EmployeeAttendanceImage::class)->where('type', 'check_out');
+    }
 }

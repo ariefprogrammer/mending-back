@@ -8,6 +8,8 @@ use App\Models\EmployeeAttendance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Models\EmployeeAttendanceImage;
+use Illuminate\Support\Facades\Storage;
 
 class EmployeeAttendanceController extends Controller
 {
@@ -119,11 +121,15 @@ class EmployeeAttendanceController extends Controller
             'employee_id' => 'required|exists:employees,id',
             'work_date'   => 'required|date',
             'check_in'    => 'nullable|date_format:H:i:s',
+            'photo'       => 'required|image|mimes:jpg,jpeg,png|max:2048', // ← tambah
         ], [
             'employee_id.required' => 'ID karyawan wajib diisi',
             'employee_id.exists'   => 'Karyawan tidak ditemukan',
             'work_date.required'   => 'Tanggal kerja wajib diisi',
             'work_date.date'       => 'Format tanggal tidak valid',
+            'photo.required'       => 'Foto selfie wajib dilampirkan',
+            'photo.image'          => 'File harus berupa gambar',
+            'photo.max'            => 'Ukuran foto maksimal 2MB',
         ]);
 
         if ($validator->fails()) {
@@ -134,7 +140,6 @@ class EmployeeAttendanceController extends Controller
             ], 422);
         }
 
-        // ✅ Cek apakah employee milik outlet ini
         $employee = Employee::where('id', $request->employee_id)
             ->where('outlet_id', $outletId)
             ->first();
@@ -146,7 +151,6 @@ class EmployeeAttendanceController extends Controller
             ], 404);
         }
 
-        // ✅ Cek apakah sudah check-in hari ini
         $existingAttendance = EmployeeAttendance::where('employee_id', $request->employee_id)
             ->where('work_date', $request->work_date)
             ->first();
@@ -163,14 +167,12 @@ class EmployeeAttendanceController extends Controller
             $checkInTime = $request->check_in ?? now()->format('H:i:s');
 
             if ($existingAttendance) {
-                // Update record yang sudah ada
                 $existingAttendance->update([
                     'check_in' => $checkInTime,
                     'status'   => 'in',
                 ]);
                 $attendance = $existingAttendance;
             } else {
-                // Buat record baru
                 $attendance = EmployeeAttendance::create([
                     'employee_id' => $request->employee_id,
                     'outlet_id'   => $outletId,
@@ -180,10 +182,27 @@ class EmployeeAttendanceController extends Controller
                 ]);
             }
 
+            // Simpan foto check-in
+            $path = $request->file('photo')->store(
+                "attendances/{$outletId}/{$attendance->id}",
+                'public'
+            );
+
+            EmployeeAttendanceImage::updateOrCreate(
+                [
+                    'employee_attendance_id' => $attendance->id,
+                    'type'                   => 'check_in',
+                ],
+                ['image_path' => $path]
+            );
+
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Check-in berhasil',
-                'data'    => $attendance->load('employee:id,employee_code,name'),
+                'data'    => $attendance->load([
+                    'employee:id,employee_code,name',
+                    'images',
+                ]),
             ], 201);
 
         } catch (\Exception $e) {
@@ -205,7 +224,22 @@ class EmployeeAttendanceController extends Controller
             return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
-        // ✅ Cari data presensi
+        $validator = Validator::make($request->all(), [
+            'photo' => 'required|image|mimes:jpg,jpeg,png|max:2048',
+        ], [
+            'photo.required' => 'Foto selfie wajib dilampirkan',
+            'photo.image'    => 'File harus berupa gambar',
+            'photo.max'      => 'Ukuran foto maksimal 2MB',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Validasi gagal',
+                'errors'  => $validator->errors()->toArray(),
+            ], 422);
+        }
+
         $attendance = EmployeeAttendance::where('outlet_id', $outletId)
             ->where('id', $id)
             ->first();
@@ -217,7 +251,6 @@ class EmployeeAttendanceController extends Controller
             ], 404);
         }
 
-        // ✅ Cek apakah sudah check-in
         if (!$attendance->check_in) {
             return response()->json([
                 'status'  => 'error',
@@ -225,7 +258,6 @@ class EmployeeAttendanceController extends Controller
             ], 422);
         }
 
-        // ✅ Cek apakah sudah check-out
         if ($attendance->check_out) {
             return response()->json([
                 'status'  => 'error',
@@ -233,7 +265,6 @@ class EmployeeAttendanceController extends Controller
             ], 422);
         }
 
-        // ✅ Cek apakah sudah mulai overtime sebelumnya
         if ($attendance->overtime) {
             return response()->json([
                 'status'  => 'error',
@@ -247,8 +278,22 @@ class EmployeeAttendanceController extends Controller
 
             $attendance->update([
                 'overtime' => $overtimeTime,
-                'status'   => 'overtime', // ✅ Status berubah jadi overtime
+                'status'   => 'overtime',
             ]);
+
+            // Simpan foto overtime
+            $path = $request->file('photo')->store(
+                "attendances/{$outletId}/{$attendance->id}",
+                'public'
+            );
+
+            EmployeeAttendanceImage::updateOrCreate(
+                [
+                    'employee_attendance_id' => $attendance->id,
+                    'type'                   => 'overtime',
+                ],
+                ['image_path' => $path]
+            );
 
             \Log::info('Overtime dimulai', [
                 'attendance_id' => $attendance->id,
@@ -259,7 +304,10 @@ class EmployeeAttendanceController extends Controller
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Overtime berhasil dimulai pada ' . $overtimeTime,
-                'data'    => $attendance->load('employee:id,employee_code,name'),
+                'data'    => $attendance->load([
+                    'employee:id,employee_code,name',
+                    'images',
+                ]),
             ]);
 
         } catch (\Exception $e) {
@@ -281,6 +329,22 @@ class EmployeeAttendanceController extends Controller
             return response()->json(['message' => 'Akses ditolak atau outlet tidak ditemukan'], 403);
         }
 
+        $validator = Validator::make($request->all(), [
+            'photo' => 'required|image|mimes:jpg,jpeg,png|max:2048',
+        ], [
+            'photo.required' => 'Foto selfie wajib dilampirkan',
+            'photo.image'    => 'File harus berupa gambar',
+            'photo.max'      => 'Ukuran foto maksimal 2MB',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Validasi gagal',
+                'errors'  => $validator->errors()->toArray(),
+            ], 422);
+        }
+
         $attendance = EmployeeAttendance::where('outlet_id', $outletId)
             ->where('id', $id)
             ->first();
@@ -292,7 +356,6 @@ class EmployeeAttendanceController extends Controller
             ], 404);
         }
 
-        // ✅ Cek apakah sudah check-in
         if (!$attendance->check_in) {
             return response()->json([
                 'status'  => 'error',
@@ -300,7 +363,6 @@ class EmployeeAttendanceController extends Controller
             ], 422);
         }
 
-        // ✅ Cek apakah sudah check-out
         if ($attendance->check_out) {
             return response()->json([
                 'status'  => 'error',
@@ -312,26 +374,35 @@ class EmployeeAttendanceController extends Controller
         try {
             $checkOutTime = $request->check_out ?? now()->format('H:i:s');
 
-            $updateData = [
-                'check_out' => $checkOutTime,
-                'status'    => 'out', // ✅ Status selalu jadi 'out' saat check-out
-            ];
-
             $message = 'Check-out berhasil';
 
-            // ✅ Jika sebelumnya overtime, beri info durasi (nanti dihitung)
             if ($attendance->status === 'overtime' && $attendance->overtime) {
-                // Hitung durasi overtime (untuk info saja, tidak disimpan)
-                $overtimeStart = strtotime($attendance->overtime);
-                $overtimeEnd   = strtotime($checkOutTime);
+                $overtimeStart   = strtotime($attendance->overtime);
+                $overtimeEnd     = strtotime($checkOutTime);
                 $durationMinutes = round(($overtimeEnd - $overtimeStart) / 60, 0);
-                $hours   = floor($durationMinutes / 60);
-                $minutes = $durationMinutes % 60;
-                
-                $message = "Check-out berhasil. Durasi lembur: {$hours} jam {$minutes} menit";
+                $hours           = floor($durationMinutes / 60);
+                $minutes         = $durationMinutes % 60;
+                $message         = "Check-out berhasil. Durasi lembur: {$hours} jam {$minutes} menit";
             }
 
-            $attendance->update($updateData);
+            $attendance->update([
+                'check_out' => $checkOutTime,
+                'status'    => 'out',
+            ]);
+
+            // Simpan foto check-out
+            $path = $request->file('photo')->store(
+                "attendances/{$outletId}/{$attendance->id}",
+                'public'
+            );
+
+            EmployeeAttendanceImage::updateOrCreate(
+                [
+                    'employee_attendance_id' => $attendance->id,
+                    'type'                   => 'check_out',
+                ],
+                ['image_path' => $path]
+            );
 
             \Log::info('Check-out berhasil', [
                 'attendance_id' => $attendance->id,
@@ -343,7 +414,10 @@ class EmployeeAttendanceController extends Controller
             return response()->json([
                 'status'  => 'success',
                 'message' => $message,
-                'data'    => $attendance->load('employee:id,employee_code,name'),
+                'data'    => $attendance->load([
+                    'employee:id,employee_code,name',
+                    'images',
+                ]),
             ]);
 
         } catch (\Exception $e) {
@@ -521,7 +595,7 @@ class EmployeeAttendanceController extends Controller
         // ✅ Query presensi berdasarkan employee_id
         $query = EmployeeAttendance::where('employee_id', $employeeId)
             ->where('outlet_id', $outletId)
-            ->with('employee:id,employee_code,name');
+            ->with('employee:id,employee_code,name', 'images',);
 
         // Filter berdasarkan tanggal
         if ($request->filled('date')) {
