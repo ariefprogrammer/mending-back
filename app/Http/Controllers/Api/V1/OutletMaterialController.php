@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Outlet;
 use App\Models\OutletMaterial;
+use App\Models\OutletMaterialUsage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 

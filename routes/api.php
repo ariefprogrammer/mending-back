@@ -22,6 +22,9 @@ use App\Http\Controllers\Api\V1\PermissionController;
 use App\Http\Controllers\Api\V1\LeaveRequestController;
 use App\Http\Controllers\Api\V1\EmployeeAttendanceController;
 use App\Http\Controllers\Api\V1\TransactionController;
+use App\Http\Controllers\Api\V1\MaterialCategoryController;
+use App\Http\Controllers\Api\V1\OutletMaterialController;
+use App\Http\Controllers\Api\V1\StockOpnameController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -203,12 +206,20 @@ Route::prefix('v1')->group(function () {
         });
 
         // Materials
-        Route::prefix('v1/outlets/{outletId}/materials')->group(function () {
+        Route::prefix('outlets/{outletId}/materials')->group(function () {
             Route::get('/',        [OutletMaterialController::class, 'index']);
             Route::get('/{id}',    [OutletMaterialController::class, 'show']);
             Route::post('/',       [OutletMaterialController::class, 'store']);
             Route::put('/{id}',    [OutletMaterialController::class, 'update']);
             Route::delete('/{id}', [OutletMaterialController::class, 'destroy']);
+        });
+
+        Route::prefix('outlets/{outletId}/stock-opnames')->group(function () {
+            Route::get('/',        [StockOpnameController::class, 'index']);
+            Route::get('/{id}',    [StockOpnameController::class, 'show']);
+            Route::post('/',       [StockOpnameController::class, 'store']);
+            Route::put('/{id}/items',    [StockOpnameController::class, 'updateItems']);
+            Route::delete('/{id}', [StockOpnameController::class, 'destroy']);
         });
     });
 
