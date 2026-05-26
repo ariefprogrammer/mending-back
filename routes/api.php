@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\TransactionController;
 use App\Http\Controllers\Api\V1\MaterialCategoryController;
 use App\Http\Controllers\Api\V1\OutletMaterialController;
 use App\Http\Controllers\Api\V1\StockOpnameController;
+use App\Http\Controllers\Api\V1\CashBookController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -221,6 +222,10 @@ Route::prefix('v1')->group(function () {
             Route::put('/{id}/items',    [StockOpnameController::class, 'updateItems']);
             Route::delete('/{id}', [StockOpnameController::class, 'destroy']);
         });
+
+        // Cash Books + Transactions
+        Route::get('outlets/{outletId}/cash-books', [CashBookController::class, 'index']);
+        Route::get('outlets/{outletId}/cash-books/{cashBookId}', [CashBookController::class, 'show']);
     });
 
 });

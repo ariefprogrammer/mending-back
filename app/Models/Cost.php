@@ -9,6 +9,7 @@ class Cost extends Model
     protected $fillable = [
         'outlet_id',
         'cash_book_id',
+        'transaction_cash_book_id',
         'payment_method_id',
         'category_id',
         'name',
@@ -41,5 +42,10 @@ class Cost extends Model
     public function paymentMethod()
     {
         return $this->belongsTo(PaymentMethod::class, 'payment_method_id');
+    }
+
+    public function cashBookTransaction()
+    {
+        return $this->belongsTo(TransactionCashBook::class, 'transaction_cash_book_id');
     }
 }

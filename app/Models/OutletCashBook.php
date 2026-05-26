@@ -15,4 +15,17 @@ class OutletCashBook extends Model
     {
         return $this->belongsTo(Outlet::class);
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(TransactionCashBook::class, 'outlet_cash_book_id');
+    }
+
+    // Hitung saldo buku kas
+    public function getBalanceAttribute(): int
+    {
+        $in  = $this->transactions()->where('type', 'in')->sum('amount');
+        $out = $this->transactions()->where('type', 'out')->sum('amount');
+        return $in - $out;
+    }
 }
