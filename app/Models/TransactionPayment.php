@@ -14,6 +14,7 @@ class TransactionPayment extends Model
         'id',
         'transaction_id',
         'payment_method_id',
+        'cash_book_id',
         'amount_paid',
         'change_amount',
         'status',

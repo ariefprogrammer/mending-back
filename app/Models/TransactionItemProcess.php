@@ -17,6 +17,8 @@ class TransactionItemProcess extends Model
         'service_flow_id',
         'employee_id',
         'asset_id',
+        'unit_id', 
+        'pieces',
         'status',
         'started_at',
         'completed_at',
@@ -35,6 +37,11 @@ class TransactionItemProcess extends Model
                 $model->id = Str::uuid()->toString();
             }
         });
+    }
+
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class, 'unit_id');
     }
 
     public function transactionItem()

@@ -44,4 +44,9 @@ class TransactionItem extends Model
     {
         return $this->belongsTo(Service::class, 'service_id');
     }
+
+    public function processes()
+    {
+        return $this->hasMany(TransactionItemProcess::class, 'transaction_item_id');
+    }
 }

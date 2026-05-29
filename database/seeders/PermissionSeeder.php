@@ -10,85 +10,140 @@ class PermissionSeeder extends Seeder
     public function run(): void
     {
         $permissions = [
-            // ─── LAPORAN ────────────────────────────────────────────
-            ['module' => 'Laporan', 'action' => 'Lihat rangkuman laporan'],
-            ['module' => 'Laporan', 'action' => 'Lihat laporan buku kas'],
-            ['module' => 'Laporan', 'action' => 'Lihat laporan pemasukan'],
-            ['module' => 'Laporan', 'action' => 'Lihat laporan pengeluaran'],
-            ['module' => 'Laporan', 'action' => 'Lihat laporan transaksi'],
-            ['module' => 'Laporan', 'action' => 'Export laporan'],
-
-            // ─── TRANSAKSI ──────────────────────────────────────────
-            ['module' => 'Transaksi', 'action' => 'Lihat daftar transaksi'],
-            ['module' => 'Transaksi', 'action' => 'Buat transaksi baru'],
-            ['module' => 'Transaksi', 'action' => 'Edit transaksi'],
-            ['module' => 'Transaksi', 'action' => 'Hapus transaksi'],
-            ['module' => 'Transaksi', 'action' => 'Proses pembayaran'],
-            ['module' => 'Transaksi', 'action' => 'Cetak struk'],
-            ['module' => 'Transaksi', 'action' => 'Beri diskon'],
-
-            // ─── PEMASUKAN ──────────────────────────────────────────
-            ['module' => 'Pemasukan', 'action' => 'Lihat daftar pemasukan'],
-            ['module' => 'Pemasukan', 'action' => 'Tambah pemasukan'],
-            ['module' => 'Pemasukan', 'action' => 'Edit pemasukan'],
-            ['module' => 'Pemasukan', 'action' => 'Hapus pemasukan'],
-            ['module' => 'Pemasukan', 'action' => 'Kelola kategori pemasukan'],
-
-            // ─── PENGELUARAN ─────────────────────────────────────────
-            ['module' => 'Pengeluaran', 'action' => 'Lihat daftar pengeluaran'],
-            ['module' => 'Pengeluaran', 'action' => 'Tambah pengeluaran'],
-            ['module' => 'Pengeluaran', 'action' => 'Edit pengeluaran'],
-            ['module' => 'Pengeluaran', 'action' => 'Hapus pengeluaran'],
-            ['module' => 'Pengeluaran', 'action' => 'Kelola kategori pengeluaran'],
-
-            // ─── BUKU KAS ────────────────────────────────────────────
-            ['module' => 'Buku Kas', 'action' => 'Lihat daftar buku kas'],
-            ['module' => 'Buku Kas', 'action' => 'Tambah buku kas'],
-            ['module' => 'Buku Kas', 'action' => 'Edit buku kas'],
-            ['module' => 'Buku Kas', 'action' => 'Hapus buku kas'],
+            // ─── DASHBOARD ──────────────────────────────────────────
+            ['module' => 'Dashboard', 'action' => 'Lihat Outlet'],
+            ['module' => 'Dashboard', 'action' => 'Pindah Outlet'],
 
             // ─── PELANGGAN ───────────────────────────────────────────
-            ['module' => 'Pelanggan', 'action' => 'Lihat daftar pelanggan'],
-            ['module' => 'Pelanggan', 'action' => 'Tambah pelanggan'],
-            ['module' => 'Pelanggan', 'action' => 'Edit pelanggan'],
-            ['module' => 'Pelanggan', 'action' => 'Hapus pelanggan'],
-            ['module' => 'Pelanggan', 'action' => 'Lihat riwayat transaksi pelanggan'],
+            ['module' => 'Pelanggan', 'action' => 'Lihat pelanggan individu'],
+            ['module' => 'Pelanggan', 'action' => 'Buat pelanggan individu'],
+            ['module' => 'Pelanggan', 'action' => 'Ubah pelanggan individu'],
+            ['module' => 'Pelanggan', 'action' => 'Lihat pelanggan rekanan'],
+            ['module' => 'Pelanggan', 'action' => 'Buat pelanggan rekanan'],
+            ['module' => 'Pelanggan', 'action' => 'Ubah pelanggan rekanan'],
+            ['module' => 'Pelanggan', 'action' => 'Hapus pelanggan rekanan'],
+            ['module' => 'Pelanggan', 'action' => 'Lihat deposit'],
+            ['module' => 'Pelanggan', 'action' => 'Buat deposit'],
+            ['module' => 'Pelanggan', 'action' => 'Ubah deposit'],
+            ['module' => 'Pelanggan', 'action' => 'Batal deposit'],
+            ['module' => 'Pelanggan', 'action' => 'Hapus deposit'],
 
-            // ─── PRODUK & LAYANAN ────────────────────────────────────
-            ['module' => 'Produk & Layanan', 'action' => 'Lihat daftar produk'],
-            ['module' => 'Produk & Layanan', 'action' => 'Tambah produk'],
-            ['module' => 'Produk & Layanan', 'action' => 'Edit produk'],
-            ['module' => 'Produk & Layanan', 'action' => 'Hapus produk'],
-            ['module' => 'Produk & Layanan', 'action' => 'Kelola kategori produk'],
-            ['module' => 'Produk & Layanan', 'action' => 'Kelola harga produk'],
+            // ─── LAYANAN ────────────────────────────────────────────
+            ['module' => 'Layanan', 'action' => 'Lihat kategori layanan'],
+            ['module' => 'Layanan', 'action' => 'Buat kategori layanan'],
+            ['module' => 'Layanan', 'action' => 'Ubah kategori layanan'],
+            ['module' => 'Layanan', 'action' => 'Hapus kategori layanan'],
+            ['module' => 'Layanan', 'action' => 'Lihat layanan'],
+            ['module' => 'Layanan', 'action' => 'Buat layanan'],
+            ['module' => 'Layanan', 'action' => 'Ubah layanan'],
+            ['module' => 'Layanan', 'action' => 'Hapus layanan'],
 
             // ─── KARYAWAN ────────────────────────────────────────────
-            ['module' => 'Karyawan', 'action' => 'Lihat daftar karyawan'],
-            ['module' => 'Karyawan', 'action' => 'Tambah karyawan'],
-            ['module' => 'Karyawan', 'action' => 'Edit karyawan'],
+            ['module' => 'Karyawan', 'action' => 'Lihat karyawan'],
+            ['module' => 'Karyawan', 'action' => 'Buat karyawan'],
+            ['module' => 'Karyawan', 'action' => 'Ubah karyawan'],
             ['module' => 'Karyawan', 'action' => 'Hapus karyawan'],
-            ['module' => 'Karyawan', 'action' => 'Kelola role karyawan'],
-            ['module' => 'Karyawan', 'action' => 'Kelola permission karyawan'],
-            ['module' => 'Karyawan', 'action' => 'Lihat data gaji karyawan'],
+            ['module' => 'Karyawan', 'action' => 'Buat upah karyawan'],
+            ['module' => 'Karyawan', 'action' => 'Buat izin akses karyawan'],
+            ['module' => 'Karyawan', 'action' => 'Ubah izin akses karyawan'],
+            ['module' => 'Karyawan', 'action' => 'Ubah upah karyawan'],
+            ['module' => 'Karyawan', 'action' => 'Lihat jabatan/divisi'],
+            ['module' => 'Karyawan', 'action' => 'Buat jabatan/divisi'],
+            ['module' => 'Karyawan', 'action' => 'Ubah jabatan/divisi'],
+            ['module' => 'Karyawan', 'action' => 'Hapus jabatan/divisi'],
 
-            // ─── PENGGAJIAN ──────────────────────────────────────────
-            ['module' => 'Penggajian', 'action' => 'Lihat daftar penggajian'],
-            ['module' => 'Penggajian', 'action' => 'Proses penggajian'],
-            ['module' => 'Penggajian', 'action' => 'Edit penggajian'],
-            ['module' => 'Penggajian', 'action' => 'Hapus penggajian'],
-            ['module' => 'Penggajian', 'action' => 'Cetak slip gaji'],
+            // ─── KEHADIRAN ───────────────────────────────────────────
+            ['module' => 'Kehadiran', 'action' => 'Lihat absensi karyawan lain'],
+            ['module' => 'Kehadiran', 'action' => 'Keputusan permintaan'],
+            ['module' => 'Kehadiran', 'action' => 'Lihat Permintaan'],
+            ['module' => 'Kehadiran', 'action' => 'Absen masuk'],
+            ['module' => 'Kehadiran', 'action' => 'Absen pulang'],
+            ['module' => 'Kehadiran', 'action' => 'Ajukan lembur'],
 
-            // ─── ABSENSI ─────────────────────────────────────────────
-            ['module' => 'Absensi', 'action' => 'Lihat data absensi'],
-            ['module' => 'Absensi', 'action' => 'Input absensi manual'],
-            ['module' => 'Absensi', 'action' => 'Edit absensi'],
-            ['module' => 'Absensi', 'action' => 'Hapus absensi'],
+            // ─── MESIN ──────────────────────────────────────────────
+            ['module' => 'Mesin', 'action' => 'Lihat Mesin'],
+            ['module' => 'Mesin', 'action' => 'Buat Mesin'],
+            ['module' => 'Mesin', 'action' => 'Ubah Mesin'],
+            ['module' => 'Mesin', 'action' => 'Hapus Mesin'],
 
-            // ─── PENGATURAN ──────────────────────────────────────────
-            ['module' => 'Pengaturan', 'action' => 'Kelola profil outlet'],
-            ['module' => 'Pengaturan', 'action' => 'Kelola metode pembayaran'],
-            ['module' => 'Pengaturan', 'action' => 'Kelola pajak & diskon'],
-            ['module' => 'Pengaturan', 'action' => 'Kelola printer & struk'],
+            // ─── BAHAN ──────────────────────────────────────────────
+            ['module' => 'Bahan', 'action' => 'Lihat stock opname'],
+            ['module' => 'Bahan', 'action' => 'Buat stock opname'],
+            ['module' => 'Bahan', 'action' => 'Ubah stock opname'],
+            ['module' => 'Bahan', 'action' => 'Hapus stock opname'],
+            ['module' => 'Bahan', 'action' => 'Lihat bahan'],
+            ['module' => 'Bahan', 'action' => 'Buat bahan'],
+            ['module' => 'Bahan', 'action' => 'Ubah bahan'],
+            ['module' => 'Bahan', 'action' => 'Hapus bahan'],
+
+            // ─── PEMASUKAN ──────────────────────────────────────────
+            /* Catatan: Di gambar terdapat 2 blok Pemasukan dengan isi yang sedikit dinamis, 
+               ini digabungkan agar daftarnya unik & mencakup semua checkbox yang ada */
+            ['module' => 'Pemasukan', 'action' => 'Lihat kategori pemasukan'],
+            ['module' => 'Pemasukan', 'action' => 'Buat kategori pemasukan'],
+            ['module' => 'Pemasukan', 'action' => 'Ubah kategori pemasukan'],
+            ['module' => 'Pemasukan', 'action' => 'Hapus kategori pemasukan'],
+            ['module' => 'Pemasukan', 'action' => 'Batal pemasukan'],
+            ['module' => 'Pemasukan', 'action' => 'Lihat pemasukan'],
+            ['module' => 'Pemasukan', 'action' => 'Buat pemasukan'],
+            ['module' => 'Pemasukan', 'action' => 'Ubah pemasukan'],
+            ['module' => 'Pemasukan', 'action' => 'Hapus pemasukan'],
+
+            // ─── PENGELUARAN ─────────────────────────────────────────
+            ['module' => 'Pengeluaran', 'action' => 'Lihat kategori pengeluaran'],
+            ['module' => 'Pengeluaran', 'action' => 'Buat kategori pengeluaran'],
+            ['module' => 'Pengeluaran', 'action' => 'Ubah kategori pengeluaran'],
+            ['module' => 'Pengeluaran', 'action' => 'Hapus kategori pengeluaran'],
+            ['module' => 'Pengeluaran', 'action' => 'Lihat pengeluaran'],
+            ['module' => 'Pengeluaran', 'action' => 'Buat pengeluaran'],
+            ['module' => 'Pengeluaran', 'action' => 'Ubah pengeluaran'],
+            ['module' => 'Pengeluaran', 'action' => 'Hapus pengeluaran'],
+
+            // ─── BUKU KAS ────────────────────────────────────────────
+            ['module' => 'Buku Kas', 'action' => 'Lihat buku kas'],
+            ['module' => 'Buku Kas', 'action' => 'Ubah buku kas'],
+            ['module' => 'Buku Kas', 'action' => 'Hapus buku kas'],
+            ['module' => 'Buku Kas', 'action' => 'Buat buku kas'],
+            ['module' => 'Buku Kas', 'action' => 'Pindahkan saldo buku kas'],
+
+            // ─── PESAN MASAL ─────────────────────────────────────────
+            ['module' => 'Pesan Masal', 'action' => 'Lihat pesan masal'],
+            ['module' => 'Pesan Masal', 'action' => 'Buat pesan masal'],
+            ['module' => 'Pesan Masal', 'action' => 'Ubah pesan masal'],
+            ['module' => 'Pesan Masal', 'action' => 'Hapus pesan masal'],
+            ['module' => 'Pesan Masal', 'action' => 'Batal pesan masal'],
+
+            // ─── OUTLET ─────────────────────────────────────────────
+            ['module' => 'Outlet', 'action' => 'Ubah data outlet'],
+            ['module' => 'Outlet', 'action' => 'Template pesan pemberitahuan'],
+            ['module' => 'Outlet', 'action' => 'Pengaturan nota/struk'],
+            ['module' => 'Outlet', 'action' => 'Pengaturan outlet'],
+
+            // ─── TRANSAKSI ──────────────────────────────────────────
+            ['module' => 'Transaksi', 'action' => 'Lihat transaksi'],
+            ['module' => 'Transaksi', 'action' => 'Buat transaksi'],
+            ['module' => 'Transaksi', 'action' => 'Pilih waktu transaksi'],
+            ['module' => 'Transaksi', 'action' => 'Batalkan pembayaran'],
+            ['module' => 'Transaksi', 'action' => 'Batal transaksi'],
+            ['module' => 'Transaksi', 'action' => 'Ubah transaksi'],
+            ['module' => 'Transaksi', 'action' => 'Hapus transaksi'],
+
+            // ─── LAPORAN ────────────────────────────────────────────
+            ['module' => 'Laporan', 'action' => 'Lihat rangkuman laporan'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan pola transaksi'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan buku kas besar'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan transaksi layanan'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan transaksi deposit'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan transaksi pemasukan lain-lain'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan pembayaran'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan pendapatan'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan layanan'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan pengeluaran'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan komisi'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan pelanggan'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan penggunaan bahan'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan mesin'],
+            ['module' => 'Laporan', 'action' => 'Lihat laporan karyawan'],
         ];
 
         DB::table('permissions')->insert($permissions);

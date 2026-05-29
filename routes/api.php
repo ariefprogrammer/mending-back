@@ -26,6 +26,8 @@ use App\Http\Controllers\Api\V1\MaterialCategoryController;
 use App\Http\Controllers\Api\V1\OutletMaterialController;
 use App\Http\Controllers\Api\V1\StockOpnameController;
 use App\Http\Controllers\Api\V1\CashBookController;
+use App\Http\Controllers\Api\V1\CashBookMappingController;
+use App\Http\Controllers\Api\V1\TransactionItemProcessController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -189,15 +191,6 @@ Route::prefix('v1')->group(function () {
             Route::get('/employee/{employeeId}/my',      [LeaveRequestController::class, 'myLeaveRequest']);
         });
 
-        // Transactions
-        Route::prefix('outlets/{outletId}/transactions')->group(function () {
-            Route::get('/',        [TransactionController::class, 'index']);
-            Route::post('/',       [TransactionController::class, 'store']);
-            Route::get('/{id}',    [TransactionController::class, 'show']);
-            Route::put('/{id}',    [TransactionController::class, 'update']);
-            Route::delete('/{id}', [TransactionController::class, 'destroy']);
-        });
-
         // Material Categories
         Route::prefix('outlets/{outletId}/material-categories')->group(function () {
             Route::get('/',        [MaterialCategoryController::class, 'index']);
@@ -226,6 +219,29 @@ Route::prefix('v1')->group(function () {
         // Cash Books + Transactions
         Route::get('outlets/{outletId}/cash-books', [CashBookController::class, 'index']);
         Route::get('outlets/{outletId}/cash-books/{cashBookId}', [CashBookController::class, 'show']);
+
+        Route::prefix('outlets/{outletId}/transactions')->group(function () {
+            Route::get('/',        [TransactionController::class, 'index']);
+            Route::post('/',       [TransactionController::class, 'store']);
+            Route::get('/{id}',    [TransactionController::class, 'show']);
+            Route::put('/{id}',    [TransactionController::class, 'update']);
+            Route::delete('/{id}', [TransactionController::class, 'destroy']);
+            Route::post('/{id}/pay',[TransactionController::class, 'pay']);
+        });
+
+        // Cash Book Mappings
+        Route::prefix('outlets/{outletId}/cash-book-mappings')->group(function () {
+            Route::get('/',        [CashBookMappingController::class, 'index']);
+            Route::post('/',       [CashBookMappingController::class, 'store']);
+            Route::put('/{id}',    [CashBookMappingController::class, 'update']);
+            Route::delete('/{id}', [CashBookMappingController::class, 'destroy']);
+        });
+
+        // ─── Item Processes ───────────────────────────────────────────────────
+        Route::prefix('outlets/{outletId}/transactions/{transactionId}/processes')->group(function () {
+            Route::post('/',                [TransactionItemProcessController::class, 'store']);
+            Route::put('/{serviceFlowId}',  [TransactionItemProcessController::class, 'update']);
+        });
     });
 
 });

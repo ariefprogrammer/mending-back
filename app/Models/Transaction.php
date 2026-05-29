@@ -14,6 +14,9 @@ class Transaction extends Model
         'id',
         'outlet_id',
         'customer_id',
+        'customer_name',
+        'user_id',
+        'employee_id',
         'transaction_code',
         'status',
         'payment_status',
@@ -70,6 +73,16 @@ class Transaction extends Model
     public function payments()
     {
         return $this->hasMany(TransactionPayment::class, 'transaction_id');
+    }
+
+    public function createdByUser()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function createdByEmployee()
+    {
+        return $this->belongsTo(Employee::class, 'employee_id');
     }
 
 }
