@@ -102,10 +102,10 @@ class AuthController extends Controller
                         'name'       => $user->name,
                         'email'      => $user->email,
                         'role'       => $user->role,
-                        'outlet_id'  => $outletId,  // ✅ Tambahkan outlet_id
+                        'outlet_id'  => $outletId,  
                         'type'       => 'owner',
                     ],
-                    'outlet' => $outlet ? [           // ✅ Tambahkan data outlet
+                    'outlet' => $outlet ? [           
                         'id'   => $outlet->id,
                         'name' => $outlet->name,
                     ] : null,
@@ -118,7 +118,10 @@ class AuthController extends Controller
         // 3. Coba login sebagai Employee (Karyawan)
         $employee = Employee::where('email', $request->email)
             ->where('is_active', true)
-            ->with('outlet:id,name') // ✅ Load relasi outlet
+            ->with([
+                'outlet:id,name',
+                'permissions.permission',
+            ])
             ->first();
 
         if ($employee && Hash::check($request->password, $employee->password)) {
@@ -136,15 +139,21 @@ class AuthController extends Controller
                         'employee_code'  => $employee->employee_code,
                         'role'           => $employee->role?->name,
                         'role_id'        => $employee->role_id,
-                        'outlet_id'      => $employee->outlet_id, // ✅ Sudah ada
+                        'outlet_id'      => $employee->outlet_id, 
                         'phone'          => $employee->phone,
                         'type'           => 'employee',
+                        'permissions'    => $employee->permissions
+                                ->filter(fn($p) => $p->permission !== null)
+                                ->map(fn($p) => [
+                                    'key' => $p->permission->module . '.' . $p->permission->action,
+                                ])
+                                ->values(),
                     ],
-                    'outlet' => $employee->outlet ? [            // ✅ Tambahkan data outlet
+                    'outlet' => $employee->outlet ? [            //  data outlet
                         'id'   => $employee->outlet->id,
                         'name' => $employee->outlet->name,
                     ] : null,
-                    'outlet_id'     => $employee->outlet_id,     // ✅ Tambahkan outlet_id di root data
+                    'outlet_id'     => $employee->outlet_id,     // outlet_id di root data
                     'access_token'  => $token,
                     'token_type'    => 'Bearer',
                 ]

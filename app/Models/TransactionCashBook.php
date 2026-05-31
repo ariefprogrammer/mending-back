@@ -10,6 +10,7 @@ class TransactionCashBook extends Model
 
     protected $fillable = [
         'outlet_cash_book_id',
+        'transaction_payment_id',
         'outlet_id',
         'type',
         'amount',

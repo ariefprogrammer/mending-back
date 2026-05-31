@@ -33,6 +33,46 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
+
+    Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
+        $token = $request->bearerToken();
+        $accessToken = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+
+        if (!$accessToken) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $user = $accessToken->tokenable;
+        \Log::info('Broadcasting auth all input', $request->all());
+
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $channelName     = $request->input('channel_name', '');
+        $socketId        = $request->input('socket_id', '');
+        $expectedChannel = 'private-employee.' . $user->id;
+
+        // ✅ Debug sementara
+        \Log::info('Broadcasting auth debug', [
+            'channel_name'     => $channelName,
+            'expected_channel' => $expectedChannel,
+            'user_id'          => $user->id,
+            'match'            => $channelName === $expectedChannel,
+        ]);
+
+        if ($channelName !== $expectedChannel) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $appKey    = config('broadcasting.connections.reverb.key');
+        $appSecret = config('broadcasting.connections.reverb.secret');
+        $signature = hash_hmac('sha256', $socketId . ':' . $channelName, $appSecret);
+        $auth      = $appKey . ':' . $signature;
+
+        return response()->json(['auth' => $auth]);
+    });
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
 

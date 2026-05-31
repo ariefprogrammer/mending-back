@@ -8,6 +8,7 @@ use App\Models\Outlet;
 use App\Models\SalaryComponent;
 use App\Models\DetailSalaryComponent;
 use App\Models\EmployeePermission;
+use App\Events\EmployeePermissionUpdated;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -146,171 +147,6 @@ class EmployeeController extends Controller
             'data'   => $array, // Cara 1: toArray()
         ]);
     }
-
-    // public function store(Request $request, $outletId)
-    // {
-    //     if (!$this->checkAccess($outletId)) {
-    //         return response()->json(['message' => 'Akses ditolak'], 403);
-    //     }
-
-    //     if ($request->filled('salary_components') && is_string($request->salary_components)) {
-    //         $request->merge([
-    //             'salary_components' => json_decode($request->salary_components, true)
-    //         ]);
-    //     }
-
-    //     if ($request->filled('permissions') && is_string($request->permissions)) {
-    //         $request->merge(['permissions' => json_decode($request->permissions, true)]);
-    //     }
-
-    //     $validator = Validator::make($request->all(), [
-    //         'role_id'                        => 'nullable|exists:outlet_employee_roles,id',
-    //         'employee_code'                  => 'required|string|max:50|unique:employees,employee_code',
-    //         'name'                           => 'required|string|max:255',
-    //         'phone'                          => 'nullable|string|max:20',
-    //         'email'                          => 'nullable|email|max:255',
-    //         'password'                       => 'required|string|min:6',
-    //         'default_base_salary'            => 'nullable|numeric|min:0',
-    //         'overtime_salary_per_hour'       => 'nullable|numeric|min:0',
-    //         'ktp_image'                      => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-    //         'npwp_image'                     => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-    //         'bpjs_kesehatan_image'           => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-    //         'bpjs_ketenagakerjaan_image'     => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-
-    //         // Validasi salary components
-    //         'salary_components'                        => 'nullable|array',
-    //         'salary_components.*.name'                 => 'required|string|max:255',
-    //         'salary_components.*.details'              => 'nullable|array',
-    //         'salary_components.*.details.*.name'     => 'required|string|max:255',
-    //         'salary_components.*.details.*.amount'   => 'required|numeric|min:0',
-    //         'salary_components.*.details.*.type'     => 'required|string|max:100',
-    //         'salary_components.*.details.*.duration' => 'required|string|max:50',
-
-    //         // Validasi permissions
-    //         'permissions'                          => 'nullable|array',
-    //         'permissions.*.permission_id'          => 'required|exists:permissions,id',
-    //         'permissions.*.allowed'                => 'required|boolean',
-    //     ]);
-
-    //     if ($validator->fails()) {
-    //         return response()->json([
-    //             'message' => 'Validasi gagal',
-    //             'errors'  => $validator->errors()->toArray(),
-    //             'data_sent' => $request->except(['ktp_image', 'npwp_image', 'bpjs_kesehatan_image', 'bpjs_ketenagakerjaan_image']) // Debug data yang dikirim
-    //         ], 422);
-    //     }
-
-    //     DB::beginTransaction();
-
-    //     try {
-    //         $data = [
-    //             'outlet_id'                      => $outletId,
-    //             'role_id'                        => $request->role_id,
-    //             'employee_code'                  => $request->employee_code,
-    //             'name'                           => $request->name,
-    //             'phone'                          => $request->phone,
-    //             'email'                          => $request->email,
-    //             'password'                       => bcrypt($request->password),
-    //             'default_base_salary'            => $request->default_base_salary            ?? 0,
-    //             'overtime_salary_per_hour'       => $request->overtime_salary_per_hour       ?? 0,
-    //         ];
-
-    //         if ($request->hasFile('ktp_image')) {
-    //             $data['ktp_image_url'] = $this->uploadImage($request->file('ktp_image'), 'employees/ktp');
-    //         }
-    //         if ($request->hasFile('npwp_image')) {
-    //             $data['npwp_image_url'] = $this->uploadImage($request->file('npwp_image'), 'employees/npwp');
-    //         }
-    //         if ($request->hasFile('bpjs_kesehatan_image')) {
-    //             $data['bpjs_kesehatan_image_url'] = $this->uploadImage($request->file('bpjs_kesehatan_image'), 'employees/bpjs_kesehatan');
-    //         }
-    //         if ($request->hasFile('bpjs_ketenagakerjaan_image')) {
-    //             $data['bpjs_ketenagakerjaan_image_url'] = $this->uploadImage($request->file('bpjs_ketenagakerjaan_image'), 'employees/bpjs_ketenagakerjaan');
-    //         }
-
-    //         $employee = Employee::create($data);
-
-    //         // Simpan salary components beserta detailnya
-    //         if ($request->filled('salary_components')) {
-    //             foreach ($request->salary_components as $componentData) {
-    //                 $component = SalaryComponent::create([
-    //                     'employee_id' => $employee->id,
-    //                     'name'        => $componentData['name'],
-    //                 ]);
-
-    //                 if (!empty($componentData['details'])) {
-    //                     foreach ($componentData['details'] as $detail) {
-    //                         DetailSalaryComponent::create([
-    //                             'salary_component_id' => $component->id,
-    //                             'name'                => $detail['name'],
-    //                             'amount'              => $detail['amount'],
-    //                             'type'                => $detail['type'],
-    //                             'duration'            => $detail['duration'],
-    //                         ]);
-    //                     }
-    //                 }
-    //             }
-    //         }
-
-    //         // Simpan permissions
-    //         if ($request->filled('permissions')) {
-    //             $activePermissions = collect($request->permissions)
-    //                 ->where('allowed', true)
-    //                 ->values();
-                
-    //             foreach ($activePermissions as $perm) {
-    //                 EmployeePermission::create([
-    //                     'employee_id'   => $employee->id,
-    //                     'outlet_id'     => $outletId,
-    //                     'permission_id' => $perm['permission_id'],
-    //                     'allowed'       => true,
-    //                 ]);
-    //             }
-    //         }
-
-    //         DB::commit();
-
-    //         return response()->json([
-    //             'status'  => 'success',
-    //             'message' => 'Karyawan berhasil ditambahkan',
-    //             'data'    => $employee->load([
-    //                 'role:id,name',
-    //                 'salaryComponents.details',
-    //                 'permissions.permission',
-    //             ]),
-    //         ], 201);
-
-    //     } catch (\Illuminate\Database\QueryException $e) {
-    //         DB::rollBack();
-    //         \Log::error('Database Error: ' . $e->getMessage(), [
-    //             'sql' => $e->getSql(),
-    //             'bindings' => $e->getBindings(),
-    //             'request_data' => $request->except(['password', 'ktp_image', 'npwp_image', 'bpjs_kesehatan_image', 'bpjs_ketenagakerjaan_image'])
-    //         ]);
-            
-    //         return response()->json([
-    //             'message' => 'Gagal menyimpan ke database',
-    //             'error'   => $e->getMessage(),
-    //             'hint'    => 'Periksa apakah semua data sudah benar dan tidak ada duplikasi',
-    //         ], 500);
-            
-    //     } catch (\Exception $e) {
-    //         DB::rollBack();
-    //         \Log::error('General Error: ' . $e->getMessage(), [
-    //             'file' => $e->getFile(),
-    //             'line' => $e->getLine(),
-    //             'trace' => $e->getTraceAsString(),
-    //             'request_data' => $request->except(['password', 'ktp_image', 'npwp_image', 'bpjs_kesehatan_image', 'bpjs_ketenagakerjaan_image'])
-    //         ]);
-            
-    //         return response()->json([
-    //             'message' => 'Terjadi kesalahan, data tidak tersimpan',
-    //             'error'   => $e->getMessage(),
-    //             'file'    => basename($e->getFile()), 
-    //             'line'    => $e->getLine(),           
-    //         ], 500);
-    //     }
-    // }
 
     public function store(Request $request, $outletId)
     {
@@ -931,7 +767,24 @@ class EmployeeController extends Controller
 
             DB::commit();
 
-            // ✅ 10. Response sukses
+            // 10. Broadcast permission update ke Flutter (jika permissions diubah)
+            if ($request->has('permissions')) {
+                $permissionKeys = EmployeePermission::where('employee_id', $employee->id)
+                    ->where('outlet_id', $outletId)
+                    ->with('permission')
+                    ->get()
+                    ->filter(fn($ep) => $ep->permission !== null)
+                    ->map(fn($ep) => $ep->permission->module . '.' . $ep->permission->action)
+                    ->values()
+                    ->toArray();
+
+                broadcast(new EmployeePermissionUpdated(
+                    employeeId: $employee->id,
+                    permissions: $permissionKeys,
+                ));
+            }
+
+            // 11. Response sukses
             $responseData = [
                 'id'                  => $employee->id,
                 'outlet_id'           => $employee->outlet_id,

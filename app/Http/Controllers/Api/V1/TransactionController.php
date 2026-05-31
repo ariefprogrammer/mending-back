@@ -79,10 +79,11 @@ class TransactionController extends Controller
 
             TransactionCashBook::create([
                 'outlet_cash_book_id'    => $paymentData['cash_book_id'],
+                'transaction_payment_id' => $payment->id,
                 'outlet_id'              => $transaction->outlet_id,
                 'type'                   => 'in',
                 'amount'                 => $amountPaid - $changeAmount,
-                'description'            => "Pembayaran transaksi {$transaction->transaction_code}",
+                'description'            => "{$transaction->transaction_code} - Pembayaran transaksi",
                 'transaction_date'       => now()->toDateString(),
                 'created_by_user_id'     => $user instanceof \App\Models\User     ? $user->id : null,
                 'created_by_employee_id' => $user instanceof \App\Models\Employee ? $user->id : null,

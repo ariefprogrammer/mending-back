@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Auth\Authenticatable;
 
-class Employee extends Model
+class Employee extends Model implements AuthenticatableContract
 {
-    use HasApiTokens;
+    use HasApiTokens, Authenticatable;
     public $incrementing = false;
     protected $keyType   = 'string';
 
