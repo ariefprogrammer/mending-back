@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\StockOpnameController;
 use App\Http\Controllers\Api\V1\CashBookController;
 use App\Http\Controllers\Api\V1\CashBookMappingController;
 use App\Http\Controllers\Api\V1\TransactionItemProcessController;
+use App\Http\Controllers\Api\V1\OutletNotificationTemplateController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -52,14 +53,6 @@ Route::prefix('v1')->group(function () {
         $channelName     = $request->input('channel_name', '');
         $socketId        = $request->input('socket_id', '');
         $expectedChannel = 'private-employee.' . $user->id;
-
-        // ✅ Debug sementara
-        \Log::info('Broadcasting auth debug', [
-            'channel_name'     => $channelName,
-            'expected_channel' => $expectedChannel,
-            'user_id'          => $user->id,
-            'match'            => $channelName === $expectedChannel,
-        ]);
 
         if ($channelName !== $expectedChannel) {
             return response()->json(['message' => 'Forbidden'], 403);
@@ -282,6 +275,10 @@ Route::prefix('v1')->group(function () {
             Route::post('/',                [TransactionItemProcessController::class, 'store']);
             Route::put('/{serviceFlowId}',  [TransactionItemProcessController::class, 'update']);
         });
+
+        // ─── Outlet Notification Templates ───────────────────────────────────────────────────
+        Route::get('/outlets/{outletId}/notification-templates',  [OutletNotificationTemplateController::class, 'index']);
+        Route::post('/outlets/{outletId}/notification-templates', [OutletNotificationTemplateController::class, 'upsert']);
     });
 
 });
