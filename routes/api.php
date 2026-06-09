@@ -29,11 +29,14 @@ use App\Http\Controllers\Api\V1\CashBookController;
 use App\Http\Controllers\Api\V1\CashBookMappingController;
 use App\Http\Controllers\Api\V1\TransactionItemProcessController;
 use App\Http\Controllers\Api\V1\OutletNotificationTemplateController;
+use App\Http\Controllers\Api\V1\OutletNotaSettingController;
+use App\Http\Controllers\Api\V1\CustomerBalanceMutationController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/nota/{transactionCode}', [NotaController::class, 'show'])->name('nota.show');
 
     Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
         $token = $request->bearerToken();
@@ -279,6 +282,14 @@ Route::prefix('v1')->group(function () {
         // ─── Outlet Notification Templates ───────────────────────────────────────────────────
         Route::get('/outlets/{outletId}/notification-templates',  [OutletNotificationTemplateController::class, 'index']);
         Route::post('/outlets/{outletId}/notification-templates', [OutletNotificationTemplateController::class, 'upsert']);
+
+        // ─── Outlet Nota Settings ───────────────────────────────────────────────────
+        Route::get('/outlets/{outletId}/nota-settings',  [OutletNotaSettingController::class, 'show']);
+        Route::post('/outlets/{outletId}/nota-settings', [OutletNotaSettingController::class, 'upsert']);
+
+        // ─── Customer Balance Mutations ───────────────────────────────────────────────────
+        Route::get('/outlets/{outletId}/customers/{customerId}/balance-mutations',[CustomerBalanceMutationController::class, 'index']);
+        Route::post('/outlets/{outletId}/customers/{customerId}/balance-mutations',[CustomerBalanceMutationController::class, 'store']);
     });
 
 });

@@ -42,4 +42,9 @@ class Customer extends Model
     {
         return $this->belongsTo(Outlet::class);
     }
+
+    public function transactions()
+    {
+        return $this->hasMany(\App\Models\Transaction::class, 'customer_id');
+    }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Outlet;
 use App\Models\Customer;
 use App\Models\Employee;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -51,7 +52,10 @@ class CustomerController extends Controller
             });
         }
 
-        $customers = $query->latest()->get();
+        $customers = $query
+            ->withCount('transactions')
+            ->latest()
+            ->get();
 
         return response()->json([
             'status' => 'success',
@@ -72,9 +76,24 @@ class CustomerController extends Controller
             return response()->json(['message' => 'Customer tidak ditemukan'], 404);
         }
 
+        // Agregasi transaksi
+        $transactions = Transaction::where('customer_id', $customer->id);
+
+        $totalAmount    = $transactions->clone()->sum('grand_total');
+        $unpaidAmount   = $transactions->clone()->where('payment_status', 'unpaid')->sum('grand_total');
+        $paidAmount     = $transactions->clone()->where('payment_status', 'paid')->sum('grand_total');
+        $totalCount     = $transactions->clone()->count();
+        $firstTrxDate   = $transactions->clone()->orderBy('created_at')->value('created_at');
+
         return response()->json([
             'status' => 'success',
-            'data'   => $customer,
+            'data'   => array_merge($customer->toArray(), [
+                'total_amount'         => $totalAmount,
+                'unpaid_amount'        => $unpaidAmount,
+                'paid_amount'          => $paidAmount,
+                'transactions_count'   => $totalCount,
+                'first_transaction_at' => $firstTrxDate,
+            ]),
         ]);
     }
 
