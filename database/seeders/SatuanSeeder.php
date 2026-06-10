@@ -11,7 +11,7 @@ class SatuanSeeder extends Seeder
     {
         $satuans = [
             // Satuan Berat
-            ['name' => 'Kilogram', 'type' => 'berat', 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Kg', 'type' => 'berat', 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Gram', 'type' => 'berat', 'created_at' => now(), 'updated_at' => now()],
 
             // Satuan Item

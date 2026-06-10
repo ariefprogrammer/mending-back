@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\TransactionItemProcessController;
 use App\Http\Controllers\Api\V1\OutletNotificationTemplateController;
 use App\Http\Controllers\Api\V1\OutletNotaSettingController;
 use App\Http\Controllers\Api\V1\CustomerBalanceMutationController;
+use App\Http\Controllers\Api\V1\TransactionReportController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -290,6 +291,21 @@ Route::prefix('v1')->group(function () {
         // ─── Customer Balance Mutations ───────────────────────────────────────────────────
         Route::get('/outlets/{outletId}/customers/{customerId}/balance-mutations',[CustomerBalanceMutationController::class, 'index']);
         Route::post('/outlets/{outletId}/customers/{customerId}/balance-mutations',[CustomerBalanceMutationController::class, 'store']);
+
+        // Report transaksi layanan
+        Route::get('/outlets/{outletId}/reports/transactions/by-service', [TransactionReportController::class, 'byService']);
+
+        // Report Pembayaran
+        Route::get('/outlets/{outletId}/reports/payments/by-method',[TransactionReportController::class, 'byPaymentMethod']);
+        
+        // Laporan Buku Kas Besar
+        Route::get('/outlets/{outletId}/reports/cash-book-ledger',[TransactionReportController::class, 'cashBookLedger']);
+
+        // Laporan Rangkuman
+        Route::get('/outlets/{outletId}/reports/rangkuman', [TransactionReportController::class, 'rangkuman']);
+
+        // Laporan Pola Transaksi
+        Route::get('/outlets/{outletId}/reports/pola-transaksi', [TransactionReportController::class, 'polaTransaksi']);
     });
 
 });
