@@ -611,5 +611,415 @@ class TransactionReportController extends Controller
         ]);
     }
 
+    // Laporan Proses Pengerjaan
+    public function prosesLaporan(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date'   => 'required|date_format:Y-m-d|after_or_equal:start_date',
+            'status'     => 'nullable|in:proses,selesai',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate   = $request->end_date   . ' 23:59:59';
+
+        // ── Ambil semua service flows milik outlet ────────────────────────────
+        $allFlows = \App\Models\ServiceFlow::whereHas('service', function ($q) use ($outletId) {
+            $q->where('outlet_id', $outletId);
+        })->get(['id', 'name'])->unique('name');
+
+        // ── Ambil semua satuan dari database ──────────────────────────────────
+        $allSatuans = \App\Models\Satuan::all(['id', 'name']);
+
+        // ── Ambil semua proses dalam rentang tanggal ──────────────────────────
+        $query = \App\Models\TransactionItemProcess::with([
+                'satuan:id,name',
+                'serviceFlow:id,name',
+            ])
+            ->whereHas('transactionItem.transaction', function ($q) use ($outletId) {
+                $q->where('outlet_id', $outletId);
+            })
+            ->whereBetween('started_at', [$startDate, $endDate]);
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        $processes = $query->get();
+
+        // ── Kelompokkan proses per satuan_id ──────────────────────────────────
+        $grouped = $processes->groupBy(fn($p) => $p->satuan_id ?? 'null');
+
+        // ── Bangun result dari semua satuan (termasuk yang tidak punya data) ──
+        $satuanGroups = $allSatuans->map(function ($satuan) use ($grouped, $allFlows) {
+            $items = $grouped->get($satuan->id, collect());
+
+            $piecesByFlow = $items
+                ->groupBy(fn($p) => $p->serviceFlow?->name ?? 'Lainnya')
+                ->map(fn($flowItems) => (int) $flowItems->sum('pieces'));
+
+            $flowData = $allFlows->map(fn($flow) => [
+                'flow_name' => $flow->name,
+                'total'     => $piecesByFlow[$flow->name] ?? 0,
+            ])->values();
+
+            return [
+                'satuan_name' => $satuan->name,
+                'flows'       => $flowData,
+                'grand_total' => (int) $items->sum('pieces'),
+            ];
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'start_date'    => $request->start_date,
+                'end_date'      => $request->end_date,
+                'status_filter' => $request->status ?? 'semua',
+                'total_records' => $processes->count(),
+                'groups'        => $satuanGroups->values(),
+            ],
+        ]);
+    }
+
+    // Laporan Peralatan Produksi
+    public function peralatanProduksi(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date'   => 'required|date_format:Y-m-d|after_or_equal:start_date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate   = $request->end_date   . ' 23:59:59';
+
+        // ── Ambil semua unit (mesin) milik outlet ─────────────────────────────
+        $allUnits = \App\Models\Unit::where('outlet_id', $outletId)
+            ->with('unitProcesses:id,unit_id,name,is_active')
+            ->get();
+
+        // ── Ambil semua satuan ────────────────────────────────────────────────
+        $allSatuans = \App\Models\Satuan::all(['id', 'name']);
+
+        // ── Ambil semua proses dalam rentang tanggal ──────────────────────────
+        $processes = \App\Models\TransactionItemProcess::with([
+                'satuan:id,name',
+                'serviceFlow:id,name',
+            ])
+            ->whereNotNull('unit_id')
+            ->whereHas('transactionItem.transaction', function ($q) use ($outletId) {
+                $q->where('outlet_id', $outletId);
+            })
+            ->whereBetween('started_at', [$startDate, $endDate])
+            ->get();
+
+        // ── Kelompokkan per unit_id ───────────────────────────────────────────
+        $groupedByUnit = $processes->groupBy('unit_id');
+
+        // ── Bangun result dari semua unit ─────────────────────────────────────
+        $result = $allUnits->map(function ($unit) use ($groupedByUnit, $allSatuans) {
+            $unitProcesses = $groupedByUnit->get($unit->id, collect());
+
+            // Nama-nama proses yang bisa dikerjakan unit ini
+            $processNames = $unit->unitProcesses
+                ->where('is_active', true)
+                ->pluck('name')
+                ->implode(', ');
+
+            // Hitung pieces per satuan
+            $groupedBySatuan = $unitProcesses->groupBy('satuan_id');
+
+            $satuanData = $allSatuans->map(function ($satuan) use ($groupedBySatuan) {
+                $items = $groupedBySatuan->get($satuan->id, collect());
+                return [
+                    'satuan_id'   => $satuan->id,
+                    'satuan_name' => $satuan->name,
+                    'total'       => (int) $items->sum('pieces'),
+                ];
+            })->filter(fn($s) => $s['total'] > 0)->values();
+
+            return [
+                'unit_id'       => $unit->id,
+                'unit_name'     => $unit->name,
+                'process_names' => $processNames ?: '-',
+                'total_jobs'    => $unitProcesses->count(),
+                'satuan_data'   => $satuanData,
+            ];
+        })->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'start_date' => $request->start_date,
+                'end_date'   => $request->end_date,
+                'units'      => $result,
+            ],
+        ]);
+    }
+
+    // Laporan Komisi
+    public function commissionReport(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date'   => 'required|date_format:Y-m-d|after_or_equal:start_date',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate   = $request->end_date   . ' 23:59:59';
+
+        // ── Ambil semua master karyawan di outlet ini ────────────────────────
+        // Di-load dari awal beserta jabatannya (role) agar karyawan yang belum 
+        // memiliki komisi di rentang tanggal tersebut tetap muncul dengan total 0.
+        $employees = \App\Models\Employee::with('role:id,name')
+            ->where('outlet_id', $outletId)
+            ->where('is_active', true)
+            ->get(['id', 'employee_code', 'name', 'role_id']);
+
+        // ── Ambil semua proses yang selesai/berjalan dalam rentang tanggal ────
+        // Menggunakan commision_snapshot yang telah dicatat saat mulai proses.
+        $processes = \App\Models\TransactionItemProcess::whereHas('transactionItem.transaction', function ($q) use ($outletId) {
+                $q->where('outlet_id', $outletId);
+            })
+            ->whereNotNull('employee_id')
+            ->whereBetween('started_at', [$startDate, $endDate])
+            ->get(['id', 'employee_id', 'commision_snapshot']);
+
+        // Kelompokkan data proses berdasarkan employee_id
+        $groupedProcesses = $processes->groupBy('employee_id');
+
+        // ── Bangun Hasil Rekapitulasi ─────────────────────────────────────────
+        $reportData = $employees->map(function ($employee) use ($groupedProcesses) {
+            $employeeJobs = $groupedProcesses->get($employee->id, collect());
+            
+            // Mengalikan atau menjumlahkan seluruh nilai commision_snapshot dari pekerjaan karyawan
+            $totalCommission = $employeeJobs->sum('commision_snapshot');
+
+            return [
+                'employee_code'    => $employee->employee_code,
+                'name'             => $employee->name,
+                'role_name'        => $employee->role->name ?? '-',
+                'total_commission' => (int) $totalCommission,
+            ];
+        })->values();
+
+        // Urutkan berdasarkan komisi tertinggi (opsional, bisa dihapus jika tidak diperlukan)
+        $reportData = $reportData->sortByDesc('total_commission')->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => [
+                'start_date'     => $request->start_date,
+                'end_date'       => $request->end_date,
+                'total_employees'=> $employees->count(),
+                'grand_total_commission' => (int) $processes->sum('commision_snapshot'),
+                'report'         => $reportData,
+            ],
+        ]);
+    }
+
+    // Laporan Karyawan
+    public function byEmployee(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+ 
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date'   => 'required|date_format:Y-m-d|after_or_equal:start_date',
+        ]);
+ 
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+ 
+        $startDate = $request->start_date;
+        $endDate   = $request->end_date;
+ 
+        // ── 1. Ambil semua karyawan aktif milik outlet ────────────────────────
+        $employees = \App\Models\Employee::with('role:id,name')
+            ->where('outlet_id', $outletId)
+            ->where('is_active', true)
+            ->get();
+ 
+        // ── 2. Ambil presensi dalam rentang tanggal ───────────────────────────
+        $attendances = \App\Models\EmployeeAttendance::where('outlet_id', $outletId)
+            ->whereBetween('work_date', [$startDate, $endDate])
+            ->whereNotNull('check_in')
+            ->whereNotNull('check_out')
+            ->get()
+            ->groupBy('employee_id');
+ 
+        // ── 3. Ambil proses pengerjaan dalam rentang tanggal ──────────────────
+        $processes = \App\Models\TransactionItemProcess::with([
+                'serviceFlow:id,name',
+                'satuan:id,name',
+            ])
+            ->where('status', 'selesai')
+            ->whereNotNull('employee_id')
+            ->whereBetween('completed_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->whereHas('transactionItem.transaction', function ($q) use ($outletId) {
+                $q->where('outlet_id', $outletId);
+            })
+            ->get()
+            ->groupBy('employee_id');
+ 
+        // ── 4. Susun response per karyawan ────────────────────────────────────
+        $data = $employees->map(function ($employee) use ($attendances, $processes) {
+ 
+            // ── Hitung total jam kerja ────────────────────────────────────────
+            $employeeAttendances = $attendances->get($employee->id, collect());
+            $totalMinutes = $employeeAttendances->sum(function ($att) {
+                return $att->check_in && $att->check_out
+                    ? $att->check_in->diffInMinutes($att->check_out)
+                    : 0;
+            });
+            $totalWorkHours = round($totalMinutes / 60, 2);
+ 
+            // ── Hitung proses & komisi ────────────────────────────────────────
+            $employeeProcesses = $processes->get($employee->id, collect());
+            $totalCommission   = $employeeProcesses->sum('commision_snapshot');
+ 
+            // Group proses: per flow_name → per satuan_name → sum pieces
+            $processGroups = $employeeProcesses
+                ->groupBy(fn($p) => $p->serviceFlow->name ?? 'Tidak diketahui')
+                ->map(function ($flowProcesses, $flowName) {
+                    $quantities = $flowProcesses
+                        ->groupBy(fn($p) => $p->satuan->name ?? '-')
+                        ->map(fn($satuanProcesses, $satuanName) => [
+                            'satuan_name' => $satuanName,
+                            'total_qty'   => (int) $satuanProcesses->sum('pieces'),
+                        ])
+                        ->values();
+ 
+                    return [
+                        'flow_name'  => $flowName,
+                        'quantities' => $quantities,
+                    ];
+                })
+                ->values();
+ 
+            return [
+                'employee_id'      => $employee->id,
+                'employee_name'    => $employee->name,
+                'employee_code'    => $employee->employee_code,
+                'role_name'        => $employee->role->name ?? '-',
+                'total_work_hours' => $totalWorkHours,
+                'total_commission' => (int) $totalCommission,
+                'processes'        => $processGroups,
+            ];
+        });
+ 
+        $meta = [
+            'start_date'     => $request->start_date,
+            'end_date'       => $request->end_date,
+            'total_employees' => $employees->count(),
+        ];
+ 
+        return response()->json([
+            'status' => 'success',
+            'meta'   => $meta,
+            'data'   => $data->values(),
+        ]);
+    }
+
+    public function deposits(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+ 
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date_format:Y-m-d',
+            'end_date'   => 'required|date_format:Y-m-d|after_or_equal:start_date',
+        ]);
+ 
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+ 
+        $startDate = $request->start_date . ' 00:00:00';
+        $endDate   = $request->end_date   . ' 23:59:59';
+ 
+        // ── Ambil semua mutasi topup dalam rentang tanggal ────────────────────
+        $mutations = \App\Models\CustomerBalanceMutation::with([
+                'customer:id,name,phone,balance',
+            ])
+            ->where('outlet_id', $outletId)
+            ->where('type', 'topup')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->orderBy('created_at', 'desc')
+            ->get();
+ 
+        // ── Group per customer ────────────────────────────────────────────────
+        $grouped = $mutations->groupBy('customer_id');
+ 
+        $customers = $grouped->map(function ($customerMutations, $customerId) {
+            $firstMutation  = $customerMutations->first();
+            $customer       = $firstMutation->customer;
+            $customerName   = $customer->name  ?? 'Pelanggan Dihapus';
+            $customerPhone  = $customer->phone ?? '-';
+            $currentBalance = $customer->balance ?? 0;
+ 
+            $mutationList = $customerMutations->map(fn($m) => [
+                'id'             => $m->id,
+                'amount'         => (int) $m->amount,
+                'balance_before' => (int) $m->balance_before,
+                'balance_after'  => (int) $m->balance_after,
+                'notes'          => $m->notes,
+                'created_at'     => $m->created_at,
+            ])->values();
+ 
+            return [
+                'customer_id'     => $customerId,
+                'customer_name'   => $customerName,
+                'customer_phone'  => $customerPhone,
+                'topup_count'     => $customerMutations->count(),
+                'total_topup'     => (int) $customerMutations->sum('amount'),
+                'current_balance' => (int) $currentBalance,
+                'mutations'       => $mutationList,
+            ];
+        })
+        ->sortByDesc('total_topup')
+        ->values();
+ 
+        $meta = [
+            'start_date'        => $request->start_date,
+            'end_date'          => $request->end_date,
+            'total_topup_count' => $mutations->count(),
+            'grand_total_topup' => (int) $mutations->sum('amount'),
+        ];
+ 
+        return response()->json([
+            'status' => 'success',
+            'meta'   => $meta,
+            'data'   => $customers,
+        ]);
+    }
 
 }

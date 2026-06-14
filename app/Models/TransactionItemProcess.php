@@ -16,15 +16,18 @@ class TransactionItemProcess extends Model
         'transaction_item_id',
         'service_flow_id',
         'employee_id',
+        'commision_snapshot',
         'asset_id',
         'unit_id', 
         'pieces',
+        'satuan_id',
         'status',
         'started_at',
         'completed_at',
     ];
 
     protected $casts = [
+        'commision_snapshot' => 'integer',
         'started_at'   => 'datetime',
         'completed_at' => 'datetime',
     ];
@@ -62,5 +65,10 @@ class TransactionItemProcess extends Model
     public function asset()
     {
         return $this->belongsTo(OutletAsset::class, 'asset_id');
+    }
+
+    public function satuan()
+    {
+        return $this->belongsTo(Satuan::class, 'satuan_id');
     }
 }

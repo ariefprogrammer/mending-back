@@ -45,6 +45,7 @@ class TransactionItemProcessController extends Controller
             'transaction_item_id' => 'required|exists:transaction_items,id',
             'unit_id'           => 'nullable|exists:units,id',
             'pieces'            => 'nullable|integer|min:0',
+            'satuan_id'         => 'nullable|exists:satuans,id',
             'packaging_qty'     => 'nullable|integer|min:0',
             'rak_info'          => 'nullable|string|max:255',
         ]);
@@ -60,6 +61,12 @@ class TransactionItemProcessController extends Controller
 
         if (!$transaction) {
             return response()->json(['message' => 'Transaksi tidak ditemukan'], 404);
+        }
+
+        // Ambil data service flow untuk mendapatkan nilai komisi
+        $serviceFlow = ServiceFlow::find($request->service_flow_id);
+        if (!$serviceFlow) {
+            return response()->json(['message' => 'Alur layanan tidak ditemukan'], 404);
         }
 
         DB::beginTransaction();
@@ -92,9 +99,11 @@ class TransactionItemProcessController extends Controller
                 'transaction_item_id' => $item->id,
                 'service_flow_id'     => $request->service_flow_id,
                 'employee_id'         => $employeeId,
+                'commision_snapshot'  => $serviceFlow->commission ?? 0,
                 'unit_id'             => $request->unit_id,
                 'asset_id'            => null,
                 'pieces'              => $request->pieces ?? 0,
+                'satuan_id'           => $request->satuan_id,
                 'status'              => 'proses',
                 'started_at'          => now(),
                 'completed_at'        => null,
@@ -141,6 +150,7 @@ class TransactionItemProcessController extends Controller
             'transaction_item_id' => 'required|exists:transaction_items,id',
             'unit_id'       => 'nullable|exists:units,id',
             'pieces'        => 'nullable|integer|min:0',
+            'satuan_id'     => 'nullable|exists:satuans,id',
             'packaging_qty' => 'nullable|integer|min:0',
             'rak_info'      => 'nullable|string|max:255',
         ]);
@@ -182,6 +192,7 @@ class TransactionItemProcessController extends Controller
             $process->update([
                 'unit_id'      => $request->unit_id ?? $process->unit_id,
                 'pieces'       => $request->pieces  ?? $process->pieces,
+                'satuan_id'    => $request->satuan_id ?? $process->satuan_id,
                 'status'       => 'selesai',
                 'completed_at' => now(),
             ]);

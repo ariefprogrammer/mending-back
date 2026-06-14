@@ -32,6 +32,8 @@ use App\Http\Controllers\Api\V1\OutletNotificationTemplateController;
 use App\Http\Controllers\Api\V1\OutletNotaSettingController;
 use App\Http\Controllers\Api\V1\CustomerBalanceMutationController;
 use App\Http\Controllers\Api\V1\TransactionReportController;
+use App\Http\Controllers\Api\V1\CustomerItemReportController;
+use App\Http\Controllers\Api\V1\EmployeeWarningLetterController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -306,6 +308,41 @@ Route::prefix('v1')->group(function () {
 
         // Laporan Pola Transaksi
         Route::get('/outlets/{outletId}/reports/pola-transaksi', [TransactionReportController::class, 'polaTransaksi']);
+
+        // Laporan Proses Pengerjaan
+        Route::get('/outlets/{outletId}/reports/proses', [TransactionReportController::class, 'prosesLaporan']);
+
+        // Laporan Peralatan Produksi
+        Route::get('/outlets/{outletId}/reports/peralatan-produksi', [TransactionReportController::class, 'peralatanProduksi']);
+
+        // Laporan Komisi
+        Route::get('/outlets/{outletId}/reports/komisi', [TransactionReportController::class, 'commissionReport']);
+
+        // Laporan Karyawan
+        Route::get('/outlets/{outletId}/reports/employees', [TransactionReportController::class, 'byEmployee']);
+
+        // Laporan deposit
+        Route::get('/outlets/{outletId}/reports/deposits', [TransactionReportController::class, 'deposits']);
+
+        // Formulir Pelanggan - Barang Tertinggal
+        Route::prefix('outlets/{outletId}/customer-item-reports')->group(function () {
+            Route::get('/',     [CustomerItemReportController::class, 'index']);
+            Route::get('{id}',  [CustomerItemReportController::class, 'show']);
+            Route::post('/',    [CustomerItemReportController::class, 'store']);
+            Route::post('{id}', [CustomerItemReportController::class, 'update']); // POST untuk support file upload
+            Route::delete('{id}', [CustomerItemReportController::class, 'destroy']);
+        });
+
+        // Formulir Karyawan - Surat Teguran
+        Route::prefix('outlets/{outletId}/employee-warning-letters')->group(function () {
+            Route::get('/',     [EmployeeWarningLetterController::class, 'index']);
+            Route::get('{id}',  [EmployeeWarningLetterController::class, 'show']);
+            Route::post('/',    [EmployeeWarningLetterController::class, 'store']);
+            Route::put('{id}',  [EmployeeWarningLetterController::class, 'update']);
+            Route::delete('{id}', [EmployeeWarningLetterController::class, 'destroy']);
+        });
+
+
     });
 
 });
