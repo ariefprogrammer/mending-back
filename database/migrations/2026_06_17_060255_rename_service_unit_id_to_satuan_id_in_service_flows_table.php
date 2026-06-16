@@ -8,29 +8,22 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('service_flows', function (Blueprint $table) {
-            try {
-                $table->dropForeign(['service_unit_id']);
-            } catch (\Exception $e) {
-                //
-            }
+        // Drop foreign keys dengan DB::statement langsung agar bisa di-ignore manual
+        try {
+            DB::statement('ALTER TABLE service_flows DROP FOREIGN KEY service_flows_service_unit_id_foreign');
+        } catch (\Exception $e) {}
 
-            try {
-                $table->dropForeign(['satuan_id']);
-            } catch (\Exception $e) {
-                //
-            }
-        });
+        try {
+            DB::statement('ALTER TABLE service_flows DROP FOREIGN KEY service_flows_satuan_id_foreign');
+        } catch (\Exception $e) {}
 
         Schema::table('service_flows', function (Blueprint $table) {
-            // Cek apakah kolom masih bernama service_unit_id, jika iya rename
             if (Schema::hasColumn('service_flows', 'service_unit_id')) {
                 $table->renameColumn('service_unit_id', 'satuan_id');
             }
         });
 
         Schema::table('service_flows', function (Blueprint $table) {
-            // Jadikan nullable dulu sebelum foreign key SET NULL
             $table->unsignedBigInteger('satuan_id')->nullable()->change();
         });
 
