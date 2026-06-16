@@ -11,7 +11,7 @@ class ServiceFlow extends Model
         'name',
         'sequence',
         'is_active',
-        'service_unit_id',
+        'satuan_id',
         'commission',
     ];
 
@@ -20,7 +20,7 @@ class ServiceFlow extends Model
         'sequence'       => 'integer',
         'commission'     => 'integer',
         'service_id'     => 'integer',
-        'service_unit_id'=> 'integer',
+        'satuan_id'      => 'integer',
     ];
 
     public function service()
@@ -28,8 +28,8 @@ class ServiceFlow extends Model
         return $this->belongsTo(Service::class);
     }
 
-    public function serviceUnit()
+    public function satuan()
     {
-        return $this->belongsTo(ServiceUnit::class);
+        return $this->belongsTo(Satuan::class);
     }
 }

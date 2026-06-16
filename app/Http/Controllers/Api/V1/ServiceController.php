@@ -83,7 +83,7 @@ class ServiceController extends Controller
             'flows' => 'nullable|array',
             'flows.*.name' => 'required_with:flows|string|max:255',
             'flows.*.commission' => 'required_with:flows|numeric|min:0',
-            'flows.*.service_unit_id' => ['required_with:flows', 'integer', Rule::exists('service_units', 'id')],
+            'flows.*.satuan_id' => ['required_with:flows', 'integer', Rule::exists('satuans', 'id')],
             'flows.*.is_active' => 'nullable|boolean',
         ]);
 
@@ -115,7 +115,7 @@ class ServiceController extends Controller
                     'name'            => $flowName,
                     'sequence'        => $sequence + 1,
                     'is_active'       => $inputFlow['is_active'] ?? true,
-                    'service_unit_id' => $inputFlow['service_unit_id'],
+                    'satuan_id' => $inputFlow['satuan_id'],
                     'commission'      => $inputFlow['commission'],
                     'created_at'      => now(),
                     'updated_at'      => now(),
@@ -127,7 +127,7 @@ class ServiceController extends Controller
                     'name'            => $flowName,
                     'sequence'        => 0,
                     'is_active'       => false,
-                    'service_unit_id' => $request->input('flows.0.service_unit_id', 1), // fallback ke id pertama
+                    'satuan_id' => $request->input('flows.0.satuan_id', 1), // fallback ke id pertama
                     'commission'      => 0,
                     'created_at'      => now(),
                     'updated_at'      => now(),
@@ -176,7 +176,7 @@ class ServiceController extends Controller
             'flows' => 'nullable|array',
             'flows.*.name' => 'required_with:flows|string|max:255',
             'flows.*.commission' => 'required_with:flows|numeric|min:0',
-            'flows.*.service_unit_id' => ['required_with:flows', 'integer', Rule::exists('service_units', 'id')],
+            'flows.*.satuan_id' => ['required_with:flows', 'integer', Rule::exists('satuans', 'id')],
             'flows.*.is_active' => 'nullable|boolean',
         ]);
 
@@ -201,7 +201,7 @@ class ServiceController extends Controller
                     $flowData = [
                         'sequence'        => $sequence + 1,
                         'is_active'       => $inputFlow['is_active'] ?? true,
-                        'service_unit_id' => $inputFlow['service_unit_id'],
+                        'satuan_id' => $inputFlow['satuan_id'],
                         'commission'      => $inputFlow['commission'],
                     ];
                 } else {
@@ -209,7 +209,7 @@ class ServiceController extends Controller
                     $flowData = [
                         'sequence'        => 0,
                         'is_active'       => false,
-                        'service_unit_id' => $existingFlow?->service_unit_id ?? 1,
+                        'satuan_id' => $existingFlow?->satuan_id ?? 1,
                         'commission'      => 0,
                     ];
                 }
