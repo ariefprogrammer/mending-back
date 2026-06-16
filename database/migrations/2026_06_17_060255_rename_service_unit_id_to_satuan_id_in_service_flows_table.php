@@ -12,10 +12,26 @@ return new class extends Migration
             try {
                 $table->dropForeign(['service_unit_id']);
             } catch (\Exception $e) {
-                // Foreign key tidak ada, lanjut
+                //
             }
 
-            $table->renameColumn('service_unit_id', 'satuan_id');
+            try {
+                $table->dropForeign(['satuan_id']);
+            } catch (\Exception $e) {
+                //
+            }
+        });
+
+        Schema::table('service_flows', function (Blueprint $table) {
+            // Cek apakah kolom masih bernama service_unit_id, jika iya rename
+            if (Schema::hasColumn('service_flows', 'service_unit_id')) {
+                $table->renameColumn('service_unit_id', 'satuan_id');
+            }
+        });
+
+        Schema::table('service_flows', function (Blueprint $table) {
+            // Jadikan nullable dulu sebelum foreign key SET NULL
+            $table->unsignedBigInteger('satuan_id')->nullable()->change();
         });
 
         Schema::table('service_flows', function (Blueprint $table) {
