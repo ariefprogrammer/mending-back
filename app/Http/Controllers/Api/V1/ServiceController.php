@@ -43,7 +43,7 @@ class ServiceController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $services = Service::with('category')
+        $services = Service::with(['category', 'satuan'])
                     ->where('outlet_id', $outletId)
                     ->when($request->search, function($query, $search) {
                         $query->where('name', 'like', "%{$search}%")
