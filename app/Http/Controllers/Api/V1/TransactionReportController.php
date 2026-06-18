@@ -1022,4 +1022,50 @@ class TransactionReportController extends Controller
         ]);
     }
 
+    public function dashboardSummary(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized'], 403);
+        }
+ 
+        $validator = Validator::make($request->all(), [
+            'date' => 'nullable|date_format:Y-m-d',
+        ]);
+ 
+        if ($validator->fails()) {
+            return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+        }
+ 
+        $date = $request->date ?? now()->format('Y-m-d');
+ 
+        // ── Ambil semua proses pada tanggal terkait, untuk outlet ini ─────────
+        $processes = \App\Models\TransactionItemProcess::with(['satuan:id,name'])
+            ->whereBetween('started_at', [$date . ' 00:00:00', $date . ' 23:59:59'])
+            ->whereHas('transactionItem.transaction', function ($q) use ($outletId) {
+                $q->where('outlet_id', $outletId);
+            })
+            ->get();
+ 
+        // ── Group per transaction_item_id, ambil SATU representasi (first) ────
+        // agar item yang sama tidak dihitung berkali-kali tiap melewati flow.
+        $uniqueItems = $processes
+            ->groupBy('transaction_item_id')
+            ->map(fn($group) => $group->first());
+ 
+        // ── Sum qty per satuan dari item-item unik tersebut ────────────────────
+        $bySatuan = $uniqueItems
+            ->groupBy(fn($item) => $item->satuan->name ?? '-')
+            ->map(fn($items, $satuanName) => [
+                'satuan_name' => $satuanName,
+                'total_qty'   => (int) $items->sum('pieces'),
+            ])
+            ->values();
+ 
+        return response()->json([
+            'status' => 'success',
+            'meta'   => ['date' => $date],
+            'data'   => $bySatuan,
+        ]);
+    }
+
 }

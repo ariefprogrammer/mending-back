@@ -324,6 +324,9 @@ Route::prefix('v1')->group(function () {
         // Laporan deposit
         Route::get('/outlets/{outletId}/reports/deposits', [TransactionReportController::class, 'deposits']);
 
+        // Dashboard grafik - proses berdasarkan satuan
+        Route::get('/outlets/{outletId}/reports/dashboard-summary',[TransactionReportController::class, 'dashboardSummary']);
+
         // Formulir Pelanggan - Barang Tertinggal
         Route::prefix('outlets/{outletId}/customer-item-reports')->group(function () {
             Route::get('/',     [CustomerItemReportController::class, 'index']);
