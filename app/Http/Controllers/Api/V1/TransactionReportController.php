@@ -1038,6 +1038,10 @@ class TransactionReportController extends Controller
  
         $date = $request->date ?? now()->format('Y-m-d');
  
+        // ── Ambil SEMUA satuan dari master tabel (sumber kebenaran kategori) ───
+        // Chart harus selalu menampilkan semua satuan ini, walau nilainya 0.
+        $allSatuans = \App\Models\Satuan::orderBy('id')->get(['id', 'name']);
+ 
         // ── Ambil semua proses pada tanggal terkait, untuk outlet ini ─────────
         $processes = \App\Models\TransactionItemProcess::with(['satuan:id,name'])
             ->whereBetween('started_at', [$date . ' 00:00:00', $date . ' 23:59:59'])
@@ -1052,14 +1056,17 @@ class TransactionReportController extends Controller
             ->groupBy('transaction_item_id')
             ->map(fn($group) => $group->first());
  
-        // ── Sum qty per satuan dari item-item unik tersebut ────────────────────
-        $bySatuan = $uniqueItems
-            ->groupBy(fn($item) => $item->satuan->name ?? '-')
-            ->map(fn($items, $satuanName) => [
-                'satuan_name' => $satuanName,
-                'total_qty'   => (int) $items->sum('pieces'),
-            ])
-            ->values();
+        // ── Sum qty per satuan_id dari item-item unik tersebut ─────────────────
+        $totalsBySatuanId = $uniqueItems
+            ->groupBy('satuan_id')
+            ->map(fn($items) => (int) $items->sum('pieces'));
+ 
+        // ── Map ke SEMUA satuan dari master, isi 0 jika tidak ada data ─────────
+        $bySatuan = $allSatuans->map(fn($satuan) => [
+            'satuan_id'   => $satuan->id,
+            'satuan_name' => $satuan->name,
+            'total_qty'   => $totalsBySatuanId->get($satuan->id, 0),
+        ])->values();
  
         return response()->json([
             'status' => 'success',
