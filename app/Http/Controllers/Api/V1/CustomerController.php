@@ -9,6 +9,8 @@ use App\Models\Employee;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use App\Imports\CustomersImport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CustomerController extends Controller
 {
@@ -198,6 +200,48 @@ class CustomerController extends Controller
         return response()->json([
             'status'  => 'success',
             'message' => 'Customer berhasil dihapus',
+        ]);
+    }
+
+    public function import(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+        ]);
+
+        $import = new CustomersImport((int) $outletId);
+        Excel::import($import, $request->file('file'));
+
+        // Format failures dari validasi (maatwebsite)
+        $validationFailures = collect($import->failures())->map(function ($failure) {
+            return [
+                'row'     => $failure->row(),
+                'reason'  => implode(', ', $failure->errors()),
+                'values'  => $failure->values(),
+            ];
+        });
+
+        // Format duplikat
+        $duplicateFailures = collect($import->getSkippedDuplicates())->map(function ($item) {
+            return [
+                'row'    => null, // optional: bisa di-track index aslinya kalau perlu
+                'reason' => $item['reason'],
+                'values' => $item['row'],
+            ];
+        });
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Import selesai',
+            'data'    => [
+                'imported_count' => $import->getImportedCount(),
+                'failed_count'   => $validationFailures->count() + $duplicateFailures->count(),
+                'failed_rows'    => $validationFailures->merge($duplicateFailures)->values(),
+            ],
         ]);
     }
 }
