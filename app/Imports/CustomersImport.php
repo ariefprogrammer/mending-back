@@ -26,24 +26,34 @@ class CustomersImport implements ToModel, WithHeadingRow, WithValidation, SkipsO
 
     public function model(array $row)
     {
-        // Cek duplikat berdasarkan phone ATAU email di outlet yang sama
-        $duplicate = Customer::where('outlet_id', $this->outletId)
-            ->where(function ($q) use ($row) {
-                if (!empty($row['phone'])) {
-                    $q->orWhere('phone', $row['phone']);
-                }
-                if (!empty($row['email'])) {
-                    $q->orWhere('email', $row['email']);
-                }
-            })
-            ->exists();
+        $phone = $row['phone'] ?? null;
+        $email = $row['email'] ?? null;
+
+        // Jika tidak ada phone maupun email, skip cek duplikat
+        $duplicate = false;
+
+        if (!empty($phone) || !empty($email)) {
+            $duplicate = Customer::where('outlet_id', $this->outletId)
+                ->where(function ($q) use ($phone, $email) {
+                    $q->where(function ($inner) use ($phone) {
+                        if (!empty($phone)) {
+                            $inner->where('phone', $phone);
+                        }
+                    });
+
+                    if (!empty($email)) {
+                        $q->orWhere('email', $email);
+                    }
+                })
+                ->exists();
+        }
 
         if ($duplicate) {
             $this->skippedDuplicates[] = [
                 'row'    => $row,
                 'reason' => 'Nomor HP atau email sudah terdaftar di outlet ini',
             ];
-            return null; // tidak di-insert
+            return null;
         }
 
         $this->importedCount++;
@@ -52,11 +62,11 @@ class CustomersImport implements ToModel, WithHeadingRow, WithValidation, SkipsO
             'outlet_id'     => $this->outletId,
             'customer_type' => $row['customer_type'] ?? 'umum',
             'name'          => $row['name'],
-            'phone'         => $row['phone'] ?? null,
-            'email'         => $row['email'] ?? null,
+            'phone'         => $phone,
+            'email'         => $email,
             'address'       => $row['address'] ?? null,
             'url_address'   => $row['url_address'] ?? null,
-            'balance'       => $row['balance'] ?? 0,
+            'balance'       => 0,
         ]);
     }
 
