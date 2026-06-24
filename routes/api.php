@@ -135,6 +135,9 @@ Route::prefix('v1')->group(function () {
         Route::post('outlets/{outletId}/services', [ServiceController::class, 'store']);
         Route::put('outlets/{outletId}/services/{id}', [ServiceController::class, 'update']);
         Route::delete('outlets/{outletId}/services/{id}', [ServiceController::class, 'destroy']);
+        Route::post('outlets/{outletId}/services/import', [ServiceController::class, 'import']);
+        Route::get('outlets/{outletId}/services/export', [ServiceController::class, 'export']);
+        Route::get('outlets/{outletId}/services/template', [ServiceController::class, 'template']); 
 
         // Asset Outlet
         Route::get('outlets/{outletId}/assets', [OutletAssetController::class, 'index']);

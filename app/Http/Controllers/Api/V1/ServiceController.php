@@ -11,6 +11,9 @@ use App\Models\OutletServiceCategory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use App\Imports\ServicesImport;
+use App\Exports\ServicesExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ServiceController extends Controller
 {
@@ -249,5 +252,54 @@ class ServiceController extends Controller
         $service->delete();
 
         return response()->json(['status' => 'success', 'message' => 'Service deleted']);
+    }
+
+    // IMPORT
+    public function import(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:5120',
+        ]);
+
+        $import = new ServicesImport((int) $outletId);
+        Excel::import($import, $request->file('file'));
+
+        $validationFailures = collect($import->failures())->map(fn($f) => [
+            'row'    => $f->row(),
+            'reason' => implode(', ', $f->errors()),
+            'values' => $f->values(),
+        ]);
+
+        $skippedFailures = collect($import->getSkippedRows())->map(fn($item) => [
+            'row'    => null,
+            'reason' => $item['reason'],
+            'values' => $item['row'],
+        ]);
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Import selesai',
+            'data' => [
+                'imported_count' => $import->getImportedCount(),
+                'updated_count'  => $import->getUpdatedCount(),
+                'failed_count'   => $validationFailures->count() + $skippedFailures->count(),
+                'failed_rows'    => $validationFailures->merge($skippedFailures)->values(),
+            ],
+        ]);
+    }
+
+    // EXPORT LAYANAN
+    public function export(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $fileName = 'layanan_' . now()->format('Ymd_His') . '.xlsx';
+        return Excel::download(new ServicesExport((int) $outletId), $fileName);
     }
 }
