@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Imports\CustomersImport;
 use App\Exports\CustomersExport;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Storage;
 
 class CustomerController extends Controller
 {
@@ -263,5 +264,25 @@ class CustomerController extends Controller
             $fileName
         );
     }
-    
+
+    public function template(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $pathToFile = storage_path('app/public/template_import_pelanggan.xlsx');
+
+        if (!file_exists($pathToFile)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'File template tidak ditemukan di server. Pastikan file sudah diunggah ke storage/app/public/'
+            ], 404);
+        }
+
+        return response()->download($pathToFile, 'template_import_pelanggan.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
 }

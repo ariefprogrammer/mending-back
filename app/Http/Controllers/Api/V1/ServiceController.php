@@ -14,6 +14,7 @@ use Illuminate\Validation\Rule;
 use App\Imports\ServicesImport;
 use App\Exports\ServicesExport;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Facades\Storage;
 
 class ServiceController extends Controller
 {
@@ -302,4 +303,28 @@ class ServiceController extends Controller
         $fileName = 'layanan_' . now()->format('Ymd_His') . '.xlsx';
         return Excel::download(new ServicesExport((int) $outletId), $fileName);
     }
+
+    public function template(Request $request, $outletId)
+    {
+        // 1. Validasi akses token/outlet seperti biasa
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $pathToFile = storage_path('app/public/template_import_layanan.xlsx');
+
+        // 2. Pastikan file benar-benar ada di folder storage server sebelum dikirim
+        if (!file_exists($pathToFile)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'File template tidak ditemukan di server. Pastikan file sudah diunggah ke storage/app/public/'
+            ], 404);
+        }
+
+        // 3. Kembalikan file dalam bentuk BinaryFileResponse murni yang diharapkan Flutter
+        return response()->download($pathToFile, 'template_import_layanan.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
 }
