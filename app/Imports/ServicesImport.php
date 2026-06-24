@@ -99,80 +99,101 @@ class ServicesImport implements ToCollection, WithHeadingRow, WithValidation, Sk
             ->unique()
             ->values();
 
+        // Tarik semua kategori untuk outlet ini agar pencarian lokal 100% akurat
         $existingCategories = OutletServiceCategory::where('outlet_id', $this->outletId)
-            ->whereIn('name', $categoryNames)
             ->pluck('id', 'name')
+            ->mapWithKeys(fn ($id, $name) => [strtolower(trim($name)) => $id])
             ->toArray();
 
-        $missingNames = $categoryNames->reject(fn ($name) => isset($existingCategories[$name]))->values();
+        // Cari tahu nama apa saja yang benar-benar belum terdaftar
+        $missingNames = $categoryNames->reject(fn ($name) => isset($existingCategories[strtolower(trim($name))]))->values();
 
         if ($missingNames->isNotEmpty()) {
-            $now = now();
-            OutletServiceCategory::insert(
-                $missingNames->map(fn ($name) => [
-                    'outlet_id'  => $this->outletId,
-                    'name'       => $name,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ])->toArray()
-            );
-
-            $existingCategories = OutletServiceCategory::where('outlet_id', $this->outletId)
-                ->whereIn('name', $categoryNames)
-                ->pluck('id', 'name')
-                ->toArray();
+            foreach ($missingNames as $name) {
+                // Gunakan firstOrCreate untuk menghindari race-condition dan menjamin data masuk
+                $category = OutletServiceCategory::firstOrCreate([
+                    'outlet_id' => $this->outletId,
+                    'name'      => $name
+                ]);
+                
+                // Daftarkan langsung ke map lokal
+                $existingCategories[strtolower(trim($name))] = $category->id;
+            }
         }
 
-        // 4) Cek service_code mana yang sudah ada (utk tentukan update vs insert)
-        $codesProvided = collect($validRows)
-            ->pluck('service_code')
-            ->filter()
-            ->unique()
-            ->values();
+        // 4) Cek service_code ATAU name mana yang sudah ada di outlet ini
+        $codesProvided = collect($validRows)->pluck('service_code')->filter()->unique()->values();
+        $namesProvided = collect($validRows)->map(fn($r) => trim($r['data']['name']))->unique()->values();
 
-        $existingServiceIds = $codesProvided->isEmpty()
-            ? []
-            : DB::table('services')
-                ->where('outlet_id', $this->outletId)
-                ->whereIn('service_code', $codesProvided)
-                ->pluck('id', 'service_code')
-                ->toArray();
+        $existingByCode = $codesProvided->isEmpty() ? [] : DB::table('services')
+            ->where('outlet_id', $this->outletId)
+            ->whereIn('service_code', $codesProvided)
+            ->pluck('id', 'service_code')
+            ->toArray();
+
+        // Gunakan lowercase key pada nama layanan agar pencarian aman dari typo huruf besar/kecil
+        $existingByName = $namesProvided->isEmpty() ? [] : DB::table('services')
+            ->where('outlet_id', $this->outletId)
+            ->whereIn('name', $namesProvided)
+            ->pluck('id', 'name')
+            ->mapWithKeys(fn ($id, $name) => [strtolower(trim($name)) => $id])
+            ->toArray();
 
         // 5) Proses insert/update + kumpulkan flow utk bulk insert di akhir
         $allFlowsData  = [];
         $updatedServiceIds = [];
 
-        DB::transaction(function () use ($validRows, $existingCategories, $existingServiceIds, &$allFlowsData, &$updatedServiceIds) {
+        DB::transaction(function () use ($validRows, $existingCategories, $existingByCode, &$existingByName, &$allFlowsData, &$updatedServiceIds) {
             foreach ($validRows as $row) {
                 $data       = $row['data'];
-                $categoryId = $existingCategories[trim($data['category'])];
+                $categoryKey = strtolower(trim($data['category'])); // Ambil dengan lowercase
+                $categoryId = $existingCategories[$categoryKey];
+                
                 $code       = $row['service_code'];
-                $existingId = $code !== '' ? ($existingServiceIds[$code] ?? null) : null;
+                $name       = trim($data['name']);
+                $nameKey    = strtolower($name); // Ambil dengan lowercase
+
+                // PRIORITAS: Cek berdasarkan kode dulu, jika tidak ada cek berdasarkan nama
+                $existingId = null;
+                if ($code !== '') {
+                    $existingId = $existingByCode[$code] ?? null;
+                }
+                
+                if (!$existingId && isset($existingByName[$nameKey])) {
+                    $existingId = $existingByName[$nameKey];
+                }
 
                 $payload = [
-                    'name'                        => $data['name'],
+                    'name'                       => $name,
                     'outlet_service_category_id' => $categoryId,
-                    'satuan_id'                   => $row['satuan_id'],
-                    'price'                       => $data['price'] ?? 0,
-                    'duration_unit'               => $data['duration_unit'] ?? 'Hari',
-                    'duration'                    => $data['duration'] ?? 1,
-                    'minimum_qty'                 => $data['minimum_qty'] ?? 1,
-                    'updated_at'                  => now(),
+                    'satuan_id'                  => $row['satuan_id'],
+                    'price'                      => $data['price'] ?? 0,
+                    'duration_unit'              => $data['duration_unit'] ?? 'Hari',
+                    'duration'                   => $data['duration'] ?? 1,
+                    'minimum_qty'                => $data['minimum_qty'] ?? 1,
+                    'updated_at'                 => now(),
                 ];
 
                 if ($existingId) {
-                    // UPDATE — data sudah ada (cocok service_code)
+                    // UPDATE
                     DB::table('services')->where('id', $existingId)->update($payload);
                     $serviceId = $existingId;
                     $updatedServiceIds[] = $serviceId;
                     $this->updatedCount++;
                 } else {
-                    // INSERT — data baru, generate service_code baru
+                    // INSERT
+                    $finalCode = $code !== '' ? $code : 'LND-' . now()->timestamp . rand(100, 999);
+
                     $serviceId = DB::table('services')->insertGetId(array_merge($payload, [
                         'outlet_id'    => $this->outletId,
-                        'service_code' => 'LND-' . now()->timestamp . rand(100, 999),
+                        'service_code' => $finalCode,
                         'created_at'   => now(),
                     ]));
+                    
+                    // PERBAIKAN: Masukkan data baru yang di-insert ke map lokal 
+                    // supaya jika ada baris duplikat di Excel yang sama, baris berikutnya mendeteksi sebagai UPDATE
+                    $existingByName[$nameKey] = $serviceId; 
+                    
                     $this->importedCount++;
                 }
 
@@ -195,12 +216,10 @@ class ServicesImport implements ToCollection, WithHeadingRow, WithValidation, Sk
                 }
             }
 
-            // Hapus flow lama utk service yang di-UPDATE (akan diganti dgn yg baru di bawah)
             if (!empty($updatedServiceIds)) {
                 ServiceFlow::whereIn('service_id', $updatedServiceIds)->delete();
             }
 
-            // Bulk insert SEMUA flow (baik dari insert baru maupun pengganti flow yang di-update)
             foreach (array_chunk($allFlowsData, 500) as $chunk) {
                 ServiceFlow::insert($chunk);
             }
