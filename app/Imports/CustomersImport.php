@@ -96,4 +96,11 @@ class CustomersImport implements ToModel, WithHeadingRow, WithValidation, SkipsO
     {
         return $this->skippedDuplicates;
     }
+
+    public function isEmptyWhen(array $row): bool
+    {
+        return empty(trim($row['name'] ?? '')) && 
+            empty(trim($row['phone'] ?? '')) && 
+            empty(trim($row['email'] ?? ''));
+    }
 }

@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Imports\CustomersImport;
+use App\Exports\CustomersExport;
 use Maatwebsite\Excel\Facades\Excel;
 
 class CustomerController extends Controller
@@ -244,4 +245,23 @@ class CustomerController extends Controller
             ],
         ]);
     }
+
+    public function export(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['message' => 'Akses ditolak'], 403);
+        }
+
+        $request->validate([
+            'type' => 'nullable|string|in:individu,rekanan',
+        ]);
+
+        $fileName = 'pelanggan_' . ($request->type ?? 'semua') . '_' . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(
+            new CustomersExport((int) $outletId, $request->type),
+            $fileName
+        );
+    }
+    
 }

@@ -119,10 +119,11 @@ Route::prefix('v1')->group(function () {
         // Customers
         Route::get('outlets/{outletId}/customers', [CustomerController::class, 'index']);
         Route::post('outlets/{outletId}/customers', [CustomerController::class, 'store']);
+        Route::post('outlets/{outletId}/customers/import', [CustomerController::class, 'import']);
+        Route::get('outlets/{outletId}/customers/export', [CustomerController::class, 'export']);
         Route::get('outlets/{outletId}/customers/{id}', [CustomerController::class, 'show']);
         Route::put('outlets/{outletId}/customers/{id}', [CustomerController::class, 'update']);
         Route::delete('outlets/{outletId}/customers/{id}', [CustomerController::class, 'destroy']);
-        Route::post('/outlets/{outletId}/customers/import', [CustomerController::class, 'import']);
 
         Route::get('outlets/{outletId}/service-categories', [ServiceCategoryController::class, 'index']);
         Route::post('outlets/{outletId}/service-categories', [ServiceCategoryController::class, 'store']);
