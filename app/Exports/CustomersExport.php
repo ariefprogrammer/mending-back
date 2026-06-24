@@ -30,14 +30,16 @@ class CustomersExport implements FromQuery, WithHeadings, WithMapping, ShouldAut
         return $query->orderBy('name');
     }
 
+    // Kolom IDENTIK dengan key yang dibaca CustomersImport -- jangan ubah tanpa sinkron keduanya
     public function headings(): array
     {
-        return ['Nama', 'No. WhatsApp', 'Email', 'Alamat', 'Tipe Pelanggan', 'Link Lokasi', 'Saldo', 'Tanggal Dibuat'];
+        return ['id', 'name', 'phone', 'email', 'address', 'customer_type', 'url_address', 'balance'];
     }
 
     public function map($customer): array
     {
         return [
+            $customer->id,
             $customer->name,
             $customer->phone,
             $customer->email,
@@ -45,7 +47,6 @@ class CustomersExport implements FromQuery, WithHeadings, WithMapping, ShouldAut
             $customer->customer_type,
             $customer->url_address,
             $customer->balance,
-            $customer->created_at?->format('d-m-Y H:i'),
         ];
     }
 }

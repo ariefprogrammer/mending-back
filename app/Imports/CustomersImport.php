@@ -3,20 +3,21 @@
 namespace App\Imports;
 
 use App\Models\Customer;
-use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\OnEachRow;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 use Maatwebsite\Excel\Concerns\SkipsOnFailure;
 use Maatwebsite\Excel\Concerns\SkipsFailures;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
-use Maatwebsite\Excel\Validators\Failure;
+use Maatwebsite\Excel\Row;
 
-class CustomersImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnFailure, SkipsEmptyRows
+class CustomersImport implements OnEachRow, WithHeadingRow, WithValidation, SkipsOnFailure, SkipsEmptyRows
 {
     use SkipsFailures;
 
     protected int $outletId;
     protected int $importedCount = 0;
+    protected int $updatedCount = 0;
     protected array $skippedDuplicates = [];
 
     public function __construct(int $outletId)
@@ -24,55 +25,74 @@ class CustomersImport implements ToModel, WithHeadingRow, WithValidation, SkipsO
         $this->outletId = $outletId;
     }
 
-    public function model(array $row)
+    public function onRow(Row $row)
     {
-        $phone = $row['phone'] ?? null;
-        $email = $row['email'] ?? null;
+        $data = $row->toArray();
 
-        // Jika tidak ada phone maupun email, skip cek duplikat
+        $id    = trim((string) ($data['id'] ?? ''));
+        $phone = $data['phone'] ?? null;
+        $email = $data['email'] ?? null;
+
+        // Cari record existing berdasarkan id (hanya dalam outlet yang sama)
+        $existingCustomer = $id !== ''
+            ? Customer::where('outlet_id', $this->outletId)->where('id', $id)->first()
+            : null;
+
+        // Cek duplikat phone/email -- kecualikan record yang sedang diupdate sendiri
         $duplicate = false;
-
         if (!empty($phone) || !empty($email)) {
-            $duplicate = Customer::where('outlet_id', $this->outletId)
+            $dupQuery = Customer::where('outlet_id', $this->outletId)
                 ->where(function ($q) use ($phone, $email) {
                     $q->where(function ($inner) use ($phone) {
                         if (!empty($phone)) {
                             $inner->where('phone', $phone);
                         }
                     });
-
                     if (!empty($email)) {
                         $q->orWhere('email', $email);
                     }
-                })
-                ->exists();
+                });
+
+            if ($existingCustomer) {
+                $dupQuery->where('id', '!=', $existingCustomer->id);
+            }
+
+            $duplicate = $dupQuery->exists();
         }
 
         if ($duplicate) {
             $this->skippedDuplicates[] = [
-                'row'    => $row,
+                'row'    => $data,
                 'reason' => 'Nomor HP atau email sudah terdaftar di outlet ini',
             ];
-            return null;
+            return;
         }
 
-        $this->importedCount++;
-
-        return new Customer([
-            'outlet_id'     => $this->outletId,
-            'customer_type' => $row['customer_type'] ?? 'umum',
-            'name'          => $row['name'],
+        $payload = [
+            'customer_type' => $data['customer_type'] ?? 'umum',
+            'name'          => $data['name'],
             'phone'         => $phone,
             'email'         => $email,
-            'address'       => $row['address'] ?? null,
-            'url_address'   => $row['url_address'] ?? null,
-            'balance'       => 0,
-        ]);
+            'address'       => $data['address'] ?? null,
+            'url_address'   => $data['url_address'] ?? null,
+            'balance'       => $data['balance'] ?? 0, // <-- diperbaiki, sebelumnya hardcode 0
+        ];
+
+        if ($existingCustomer) {
+            $existingCustomer->update($payload);
+            $this->updatedCount++;
+        } else {
+            Customer::create(array_merge($payload, [
+                'outlet_id' => $this->outletId,
+            ]));
+            $this->importedCount++;
+        }
     }
 
     public function rules(): array
     {
         return [
+            'id'    => 'nullable|string',
             'name'  => 'required|string|max:255',
             'phone' => 'nullable|string|max:20',
             'email' => 'nullable|email|max:255',
@@ -87,20 +107,14 @@ class CustomersImport implements ToModel, WithHeadingRow, WithValidation, SkipsO
         ];
     }
 
-    public function getImportedCount(): int
-    {
-        return $this->importedCount;
-    }
-
-    public function getSkippedDuplicates(): array
-    {
-        return $this->skippedDuplicates;
-    }
+    public function getImportedCount(): int { return $this->importedCount; }
+    public function getUpdatedCount(): int { return $this->updatedCount; }
+    public function getSkippedDuplicates(): array { return $this->skippedDuplicates; }
 
     public function isEmptyWhen(array $row): bool
     {
-        return empty(trim($row['name'] ?? '')) && 
-            empty(trim($row['phone'] ?? '')) && 
+        return empty(trim($row['name'] ?? '')) &&
+            empty(trim($row['phone'] ?? '')) &&
             empty(trim($row['email'] ?? ''));
     }
 }
