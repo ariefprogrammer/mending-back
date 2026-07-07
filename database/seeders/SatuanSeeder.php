@@ -18,7 +18,7 @@ class SatuanSeeder extends Seeder
             ['name' => 'Pcs',       'type' => 'item', 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Lusin',     'type' => 'item', 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Pasang',    'type' => 'item', 'created_at' => now(), 'updated_at' => now()],
-            ['name' => 'Sett',       'type' => 'item', 'created_at' => now(), 'updated_at' => now()],
+            ['name' => 'Set',       'type' => 'item', 'created_at' => now(), 'updated_at' => now()],
         ];
 
         DB::table('satuans')->insert($satuans);

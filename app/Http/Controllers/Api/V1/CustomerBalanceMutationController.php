@@ -129,7 +129,8 @@ class CustomerBalanceMutationController extends Controller
                 'cash_book_id'           => $request->cash_book_id,
                 'balance_before'         => $balanceBefore,
                 'balance_after'          => $balanceAfter,
-                'notes'                  => $request->notes,
+                // 'notes'                  => $request->notes,
+                'notes'                  => 'Top Up Saldo',
                 'created_by_user_id'     => $userId,
                 'created_by_employee_id' => $employeeId,
             ]);
