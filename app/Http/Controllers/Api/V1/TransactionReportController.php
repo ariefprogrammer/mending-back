@@ -343,7 +343,13 @@ class TransactionReportController extends Controller
             ->whereBetween('created_at', [$startDate, $endDate])
             ->sum('grand_total');
 
-        // ── Pendapatan: Revenues per kategori ────────────────────────────────
+        // ── Pendapatan: Top Up Deposit (customer balance mutations) ──────────
+        $totalTopupDeposit = \App\Models\CustomerBalanceMutation::where('outlet_id', $outletId)
+            ->where('type', 'topup')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->sum('amount');
+
+        // ── Pendapatan: Revenues per kategori (Pemasukan) ─────────────────────
         $revenues = \App\Models\Revenue::with('category:id,name')
             ->where('outlet_id', $outletId)
             ->whereBetween('created_at', [$startDate, $endDate])
@@ -361,7 +367,7 @@ class TransactionReportController extends Controller
 
         $totalRevenue = (int) $revenues->sum(fn($i) => $i->quantity * $i->price);
 
-        $totalPendapatan = (int) $totalLayanan + $totalRevenue;
+        $totalPendapatan = (int) $totalLayanan + (int) $totalTopupDeposit + $totalRevenue;
 
         // ── Pengeluaran: Costs per kategori ──────────────────────────────────
         $costs = \App\Models\Cost::with('category:id,name')
@@ -412,9 +418,13 @@ class TransactionReportController extends Controller
                     'total_keuntungan'  => $totalPendapatan - $totalPengeluaran,
                 ],
                 'pendapatan'       => [
-                    'layanan' => (int) $totalLayanan,
-                    'lainnya' => $revenueByCategory,
-                    'total'   => $totalPendapatan,
+                    'layanan'       => (int) $totalLayanan,
+                    'topup_deposit' => (int) $totalTopupDeposit,
+                    'pemasukan'     => [
+                        'per_kategori' => $revenueByCategory,
+                        'total'        => $totalRevenue,
+                    ],
+                    'total'         => $totalPendapatan,
                 ],
                 'pengeluaran'      => [
                     'per_kategori' => $costByCategory,
@@ -1072,6 +1082,149 @@ class TransactionReportController extends Controller
             'status' => 'success',
             'meta'   => ['date' => $date],
             'data'   => $bySatuan,
+        ]);
+    }
+
+    // Laporan pendapatan
+    public function incomes(Request $request, $outletId)
+    {
+        if (! $this->checkAccess($outletId)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized Access',
+            ], 403);
+        }
+
+        $query = Transaction::where('outlet_id', $outletId)
+            ->where('payment_status', 'paid');
+
+        // Filter tanggal tertentu (berdasarkan transaction_payments.updated_at)
+        if ($request->filled('date')) {
+            $date = $request->date;
+            $query->whereHas('payments', function ($q) use ($date) {
+                $q->whereDate('updated_at', $date);
+            });
+        }
+
+        // Filter rentang tanggal
+        if ($request->filled('start_date')) {
+            $startDate = $request->start_date;
+            $query->whereHas('payments', function ($q) use ($startDate) {
+                $q->whereDate('updated_at', '>=', $startDate);
+            });
+        }
+
+        if ($request->filled('end_date')) {
+            $endDate = $request->end_date;
+            $query->whereHas('payments', function ($q) use ($endDate) {
+                $q->whereDate('updated_at', '<=', $endDate);
+            });
+        }
+
+        // Pencarian
+        if ($request->filled('search')) {
+            $search = $request->search;
+
+            $query->where(function ($q) use ($search) {
+                $q->where('transaction_code', 'like', "%{$search}%")
+                ->orWhereHas('customer', function ($customer) use ($search) {
+                    $customer->where('name', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        // Clone SEBELUM with()/orderBy() diterapkan, supaya summary tetap murni dari filter
+        $summaryQuery = clone $query;
+
+        $sortDirection = $request->get('sort_order', 'desc') === 'asc' ? 'asc' : 'desc';
+
+        $latestPaymentSubquery = \App\Models\TransactionPayment::select('updated_at')
+            ->whereColumn('transaction_id', 'transactions.id')
+            ->latest('updated_at')
+            ->limit(1);
+
+        $transactions = $query
+            ->with([
+                'customer:id,name',
+                'payments' => function ($q) {
+                    $q->latest('updated_at');
+                },
+                'payments.paymentMethod:id,name',
+            ])
+            ->orderBy($latestPaymentSubquery, $sortDirection)
+            ->paginate($request->per_page ?? 20);
+
+        return response()->json([
+            'status' => 'success',
+            'summary' => [
+                'total_income' => $summaryQuery->sum('grand_total'),
+                'total_transaction' => $summaryQuery->count(),
+            ],
+            'data' => $transactions,
+        ]);
+    }
+
+    public function expenses(Request $request, $outletId)
+    {
+        if (! $this->checkAccess($outletId)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized Access',
+            ], 403);
+        }
+
+        $query = Cost::where('outlet_id', $outletId);
+
+        // Filter tanggal tertentu
+        if ($request->filled('date')) {
+            $query->whereDate('created_at', $request->date);
+        }
+
+        // Filter rentang tanggal
+        if ($request->filled('start_date')) {
+            $query->whereDate('created_at', '>=', $request->start_date);
+        }
+
+        if ($request->filled('end_date')) {
+            $query->whereDate('created_at', '<=', $request->end_date);
+        }
+
+        // Filter kategori
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+        // Pencarian
+        if ($request->filled('search')) {
+            $search = $request->search;
+
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                ->orWhere('catatan', 'like', "%{$search}%");
+            });
+        }
+
+        // Clone SEBELUM with()/orderBy() diterapkan, supaya summary tetap murni dari filter
+        $summaryQuery = clone $query;
+
+        $sortDirection = $request->get('sort_order', 'desc') === 'asc' ? 'asc' : 'desc';
+
+        $expenses = $query
+            ->with([
+                'category:id,name',
+                'paymentMethod:id,name',
+                'cashBook:id,name',
+            ])
+            ->orderBy('created_at', $sortDirection)
+            ->paginate($request->per_page ?? 20);
+
+        return response()->json([
+            'status' => 'success',
+            'summary' => [
+                'total_expense'     => $summaryQuery->sum('price'),
+                'total_transaction' => $summaryQuery->count(),
+            ],
+            'data' => $expenses,
         ]);
     }
 

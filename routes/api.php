@@ -330,6 +330,12 @@ Route::prefix('v1')->group(function () {
         // Laporan deposit
         Route::get('/outlets/{outletId}/reports/deposits', [TransactionReportController::class, 'deposits']);
 
+        // Laporan pendapatan
+        Route::get('/outlets/{outletId}/reports/incomes', [TransactionReportController::class, 'incomes']);
+
+        // Laporan pengeluaran
+        Route::get('/outlets/{outletId}/reports/expenses', [TransactionReportController::class, 'expenses']);
+
         // Dashboard grafik - proses berdasarkan satuan
         Route::get('/outlets/{outletId}/reports/dashboard-summary',[TransactionReportController::class, 'dashboardSummary']);
 
