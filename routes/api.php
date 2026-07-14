@@ -299,6 +299,7 @@ Route::prefix('v1')->group(function () {
         // ─── Customer Balance Mutations ───────────────────────────────────────────────────
         Route::get('/outlets/{outletId}/customers/{customerId}/balance-mutations',[CustomerBalanceMutationController::class, 'index']);
         Route::post('/outlets/{outletId}/customers/{customerId}/balance-mutations',[CustomerBalanceMutationController::class, 'store']);
+        Route::get('outlets/{outletId}/balance-mutations', [CustomerBalanceMutationController::class, 'indexOutlet']);
 
         // Report transaksi layanan
         Route::get('/outlets/{outletId}/reports/transactions/by-service', [TransactionReportController::class, 'byService']);

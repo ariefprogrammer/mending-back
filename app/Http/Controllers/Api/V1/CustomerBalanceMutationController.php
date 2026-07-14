@@ -66,6 +66,36 @@ class CustomerBalanceMutationController extends Controller
         ]);
     }
 
+    // ─── INDEX (OUTLET-WIDE) ─────────────────────────────────────
+    // GET /outlets/{outletId}/balance-mutations
+    // Riwayat mutasi saldo lintas pelanggan (untuk halaman Deposit)
+
+    public function indexOutlet(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized Access'], 403);
+        }
+
+        $sortDir = strtolower($request->input('sort_dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        $mutations = CustomerBalanceMutation::where('outlet_id', $outletId)
+            ->with([
+                'customer:id,name,phone',
+                'createdByUser:id,name',
+                'createdByEmployee:id,name',
+            ])
+            ->when($request->filled('type'), fn($q) => $q->where('type', $request->type))
+            ->when($request->filled('date_from'), fn($q) => $q->whereDate('created_at', '>=', $request->date_from))
+            ->when($request->filled('date_to'), fn($q) => $q->whereDate('created_at', '<=', $request->date_to))
+            ->orderBy('created_at', $sortDir)
+            ->paginate($request->per_page ?? 20);
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $mutations,
+        ]);
+    }
+
     // ─── STORE ───────────────────────────────────────────────────
     // POST /outlets/{outletId}/customers/{customerId}/balance-mutations
     // Topup / deduction / refund / adjustment saldo customer
