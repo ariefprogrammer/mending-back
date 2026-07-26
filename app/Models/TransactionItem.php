@@ -15,12 +15,14 @@ class TransactionItem extends Model
         'transaction_id',
         'service_id',
         'qty',
+        'pcs',
         'price',
         'subtotal',
     ];
 
     protected $casts = [
         'qty'      => 'float',
+        'pcs'      => 'integer',
         'price'    => 'integer',
         'subtotal' => 'integer',
     ];

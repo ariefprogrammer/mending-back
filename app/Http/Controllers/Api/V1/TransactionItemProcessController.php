@@ -104,7 +104,8 @@ class TransactionItemProcessController extends Controller
                 'asset_id'            => null,
                 'pieces'              => $request->pieces ?? 0,
                 'satuan_id'           => $request->satuan_id,
-                'status'              => 'proses',
+                // 'status'              => 'proses',
+                'status'              => 'selesai',
                 'started_at'          => now(),
                 'completed_at'        => null,
             ]);

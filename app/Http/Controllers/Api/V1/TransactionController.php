@@ -202,6 +202,7 @@ class TransactionController extends Controller
             'items'              => 'nullable|array',
             'items.*.service_id' => 'required_with:items|integer|exists:services,id',
             'items.*.qty'        => 'required_with:items|numeric|min:0.01',
+            'items.*.pcs'        => 'nullable|integer|min:0',
             'items.*.price'      => 'required_with:items|integer|min:0',
 
             // Payment — opsional
@@ -255,6 +256,7 @@ class TransactionController extends Controller
                     'transaction_id' => $transaction->id,
                     'service_id'     => $item['service_id'],
                     'qty'            => $item['qty'],
+                    'pcs'            => $item['pcs'] ?? null,
                     'price'          => $item['price'],
                     'subtotal'       => (int) ($item['price'] * $item['qty']),
                     'created_at'     => now(),
