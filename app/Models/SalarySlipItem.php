@@ -10,6 +10,10 @@ class SalarySlipItem extends Model
     protected $fillable = [
         'salary_slip_id',
         'salary_component_id',
+        'detail_salary_component_id',
+        'name',
+        'type',
+        'duration',
         'amount',
     ];
 

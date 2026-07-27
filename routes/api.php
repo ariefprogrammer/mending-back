@@ -196,8 +196,22 @@ Route::prefix('v1')->group(function () {
             Route::get('/{id}',    [EmployeeController::class, 'show']);
             Route::post('/{id}',   [EmployeeController::class, 'update']); // POST bukan PUT karena multipart/form-data
             Route::delete('/{id}', [EmployeeController::class, 'destroy']);
-            Route::post('/{id}/activate', [EmployeeController::class, 'activate']);
+            Route::post('/{id}/activate',   [EmployeeController::class, 'activate']);
             Route::post('/{id}/deactivate', [EmployeeController::class, 'deactivate']);
+
+            // slip gaji — per karyawan
+            Route::post('/{id}/salary-slips/generate', [EmployeeController::class, 'generateSalarySlip']);
+        });
+
+        // slip gaji — bulk untuk semua karyawan di outlet 
+        Route::prefix('outlets/{outletId}')->group(function () {
+            Route::post('/salary-slips/generate-bulk', [EmployeeController::class, 'generateSalarySlipBulk']);
+            Route::post('/salary-slips/preview', [EmployeeController::class, 'previewSalarySlipBulk']);
+            Route::get('/salary-slips', [EmployeeController::class, 'salarySlipIndex']);
+            Route::get('/salary-slips/{id}',    [EmployeeController::class, 'salarySlipShow']);
+            Route::post('/salary-slips/{id}',   [EmployeeController::class, 'salarySlipUpdate']);
+            Route::delete('/salary-slips/{id}', [EmployeeController::class, 'salarySlipDestroy']);
+            Route::post('/salary-slips/{id}/mark-paid', [EmployeeController::class, 'markSalarySlipPaid']);
         });
 
         // Permissions - global

@@ -58,4 +58,9 @@ class SalarySlip extends Model
     {
         return $this->belongsTo(OutletCashBook::class, 'cash_book_id');
     }
+
+    public function items()
+    {
+        return $this->hasMany(SalarySlipItem::class);
+    }
 }

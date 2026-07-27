@@ -8,12 +8,17 @@ use App\Models\Outlet;
 use App\Models\SalaryComponent;
 use App\Models\DetailSalaryComponent;
 use App\Models\EmployeePermission;
+use App\Models\EmployeeAttendance;
+use App\Models\SalarySlip;
+use App\Models\SalarySlipItem;
 use App\Events\EmployeePermissionUpdated;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use App\Models\TransactionCashBook;
 
 class EmployeeController extends Controller
 {
@@ -192,6 +197,7 @@ class EmployeeController extends Controller
             'email'                          => 'nullable|email|max:255',
             'password'                       => 'required|string|min:6',
             'default_base_salary'            => 'nullable|numeric|min:0',
+            'base_salary_type'               => 'nullable|string|in:bulanan,harian',
             'overtime_salary_per_hour'       => 'nullable|numeric|min:0',
             'ktp_image'                      => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             'npwp_image'                     => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
@@ -229,6 +235,7 @@ class EmployeeController extends Controller
             'bpjs_ketenagakerjaan_image.max'   => 'Ukuran file BPJS Ketenagakerjaan maksimal 2MB',
             'role_id.exists'         => 'Role/jabatan tidak ditemukan',
             'default_base_salary.numeric'      => 'Gaji pokok harus berupa angka',
+            'base_salary_type.in'              => 'Tipe gaji pokok tidak valid',
             'overtime_salary_per_hour.numeric' => 'Upah lembur harus berupa angka',
             'permissions.*.permission_id.exists' => 'Permission ID tidak ditemukan di database',
         ]);
@@ -255,6 +262,7 @@ class EmployeeController extends Controller
                 'email'                    => $request->email,
                 'password'                 => bcrypt($request->password),
                 'default_base_salary'      => $request->default_base_salary      ?? 0,
+                'base_salary_type'         => $request->base_salary_type         ?? 'bulanan',
                 'overtime_salary_per_hour' => $request->overtime_salary_per_hour ?? 0,
                 'is_active'                => true,
             ];
@@ -382,6 +390,7 @@ class EmployeeController extends Controller
                 'phone'               => $employee->phone,
                 'email'               => $employee->email,
                 'default_base_salary'      => $employee->default_base_salary,
+                'base_salary_type'         => $employee->base_salary_type,
                 'overtime_salary_per_hour' => $employee->overtime_salary_per_hour,
                 'ktp_image_url'            => $employee->ktp_image_url,
                 'npwp_image_url'           => $employee->npwp_image_url,
@@ -1002,4 +1011,667 @@ class EmployeeController extends Controller
             ],
         ]);
     }
+
+    private function calculateSlipData(Employee $employee, string $periodStart, string $periodEnd): array
+    {
+        $attendances = EmployeeAttendance::where('employee_id', $employee->id)
+            ->whereBetween('work_date', [$periodStart, $periodEnd])
+            ->get();
+
+        $hadirDays = $attendances->filter(function ($a) {
+            return !empty($a->check_in) && !empty($a->check_out);
+        })->count();
+
+        $baseSalaryType = $employee->base_salary_type ?? 'bulanan'; 
+        $baseSalary = $baseSalaryType === 'harian'
+            ? $employee->default_base_salary * $hadirDays
+            : $employee->default_base_salary;
+
+        $totalOvertimeHours = 0;
+        foreach ($attendances as $a) {
+            if (!empty($a->overtime) && !empty($a->check_out)) {
+                $start = Carbon::parse($a->overtime);
+                $end   = Carbon::parse($a->check_out);
+
+                if ($end->lessThan($start)) {
+                    $end->addDay();
+                }
+
+                $totalOvertimeHours += $start->diffInMinutes($end) / 60;
+            }
+        }
+        $overtimeSalary = $employee->overtime_salary_per_hour * $totalOvertimeHours;
+
+        $components = SalaryComponent::where('employee_id', $employee->id)
+            ->with('details')
+            ->get();
+
+        $allowanceDetails = [];
+        $deductionDetails = [];
+        $items            = [];
+        $totalAllowance   = 0;
+        $totalDeduction   = 0;
+
+        foreach ($components as $component) {
+            foreach ($component->details as $detail) {
+                $amount = $detail->duration === 'hari'
+                    ? $detail->amount * $hadirDays
+                    : $detail->amount;
+
+                $row = [
+                    'salary_component_id' => $component->id,
+                    'detail_id'           => $detail->id,
+                    'name'                => $detail->name,
+                    'type'                => $detail->type,
+                    'duration'            => $detail->duration,
+                    'unit_amount'         => (float) $detail->amount,
+                    'amount'              => (float) $amount,
+                ];
+
+                if ($detail->type === 'tunjangan') {
+                    $allowanceDetails[] = $row;
+                    $totalAllowance += $amount;
+                } else {
+                    $deductionDetails[] = $row;
+                    $totalDeduction += $amount;
+                }
+
+                $items[] = [
+                    'salary_component_id'        => $component->id,
+                    'detail_salary_component_id' => $detail->id,
+                    'name'                       => $detail->name,
+                    'type'                       => $detail->type,
+                    'duration'                   => $detail->duration,
+                    'amount'                     => (int) round($amount),
+                ];
+            }
+        }
+
+        $netSalary = $baseSalary + $overtimeSalary + $totalAllowance - $totalDeduction;
+
+        return [
+            'employee_id'          => $employee->id,
+            'employee_name'        => $employee->name,
+            'employee_code'        => $employee->employee_code,
+            'hadir_days'           => $hadirDays,
+            'total_overtime_hours' => round($totalOvertimeHours, 2),
+            'base_salary_type'     => $baseSalaryType,
+            'base_salary'          => (int) round($baseSalary),
+            'overtime_salary'      => (int) round($overtimeSalary),
+            'allowance_details'    => $allowanceDetails,
+            'deduction_details'    => $deductionDetails,
+            'total_allowance'      => (int) round($totalAllowance),
+            'total_deduction'      => (int) round($totalDeduction),
+            'net_salary'           => (int) round($netSalary),
+            'items'                => $items,
+        ];
+    }
+
+    /**
+     * Susun ulang total & items dari data hasil EDITAN pengguna (rincian per detail).
+     */
+    private function buildSlipPayloadFromOverride(array $override): array
+    {
+        $allowanceDetails = $override['allowance_details'] ?? [];
+        $deductionDetails = $override['deduction_details'] ?? [];
+
+        $totalAllowance = collect($allowanceDetails)->sum('amount');
+        $totalDeduction = collect($deductionDetails)->sum('amount');
+
+        $items = [];
+        foreach (array_merge($allowanceDetails, $deductionDetails) as $d) {
+            $items[] = [
+                'salary_component_id'        => $d['salary_component_id'],
+                'detail_salary_component_id' => $d['detail_salary_component_id'] ?? ($d['detail_id'] ?? null),
+                'name'                       => $d['name'] ?? null,
+                'type'                       => $d['type'] ?? null,
+                'duration'                   => $d['duration'] ?? null,
+                'amount'                     => (int) round($d['amount']),
+            ];
+        }
+
+        return [
+            'base_salary'      => (int) round($override['base_salary'] ?? 0),
+            'overtime_salary'  => (int) round($override['overtime_salary'] ?? 0),
+            'total_allowance'  => (int) round($totalAllowance),
+            'total_deduction'  => (int) round($totalDeduction),
+            'net_salary'       => (int) round($override['net_salary'] ?? 0),
+            'items'            => $items,
+        ];
+    }
+
+    /**
+     * Simpan 1 salary slip. Kalau $override diberikan, pakai angka hasil editan
+     * pengguna. Kalau tidak, hitung otomatis lewat calculateSlipData().
+     */
+    private function generateSlipForEmployee(
+        Employee $employee,
+        int $outletId,
+        string $periodStart,
+        string $periodEnd,
+        int $cashBookId,
+        ?array $override = null
+    ): SalarySlip {
+        $existing = SalarySlip::where('employee_id', $employee->id)
+            ->where('period_start', $periodStart)
+            ->where('period_end', $periodEnd)
+            ->first();
+
+        if ($existing) {
+            throw new \Exception("Slip gaji untuk karyawan '{$employee->name}' pada periode ini sudah ada.");
+        }
+
+        if ($override) {
+            $payload = $this->buildSlipPayloadFromOverride($override);
+        } else {
+            $calculated = $this->calculateSlipData($employee, $periodStart, $periodEnd);
+            $payload = [
+                'base_salary'     => $calculated['base_salary'],
+                'overtime_salary' => $calculated['overtime_salary'],
+                'total_allowance' => $calculated['total_allowance'],
+                'total_deduction' => $calculated['total_deduction'],
+                'net_salary'      => $calculated['net_salary'],
+                'items'           => $calculated['items'],
+            ];
+        }
+
+        $slip = SalarySlip::create([
+            'employee_id'      => $employee->id,
+            'outlet_id'        => $outletId,
+            'cash_book_id'     => $cashBookId,
+            'period_start'     => $periodStart,
+            'period_end'       => $periodEnd,
+            'base_salary'      => $payload['base_salary'],
+            'overtime_salary'  => $payload['overtime_salary'],
+            'total_commission' => 0,
+            'total_allowance'  => $payload['total_allowance'],
+            'total_deduction'  => $payload['total_deduction'],
+            'net_salary'       => $payload['net_salary'],
+            'status'           => SalarySlip::STATUS_DRAFT,
+        ]);
+
+        foreach ($payload['items'] as $itemData) {
+            SalarySlipItem::create(array_merge($itemData, ['salary_slip_id' => $slip->id]));
+        }
+
+        return $slip->load('items', 'employee:id,name,employee_code');
+    }
+
+    /**
+     * Generate slip gaji untuk SATU karyawan.
+     * POST /outlets/{outletId}/employees/{employeeId}/salary-slips/generate
+     */
+    public function generateSalarySlip(Request $request, $outletId, $id)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'period_start' => 'required|date',
+            'period_end'   => 'required|date|after_or_equal:period_start',
+            'cash_book_id' => 'required|integer|exists:outlet_cash_books,id',
+        ], [
+            'period_start.required' => 'Tanggal awal periode wajib diisi',
+            'period_end.required'   => 'Tanggal akhir periode wajib diisi',
+            'period_end.after_or_equal' => 'Tanggal akhir tidak boleh sebelum tanggal awal',
+            'cash_book_id.required' => 'Buku kas wajib dipilih',
+            'cash_book_id.exists'   => 'Buku kas tidak ditemukan',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Validasi gagal. Periksa kembali data yang dikirim.',
+                'errors'  => $validator->errors()->toArray(),
+            ], 422);
+        }
+
+        $employee = Employee::where('outlet_id', $outletId)->find($id);
+        if (!$employee) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Karyawan tidak ditemukan di outlet ini.',
+            ], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            $slip = $this->generateSlipForEmployee(
+                $employee,
+                $outletId,
+                $request->period_start,
+                $request->period_end,
+                $request->cash_book_id
+            );
+
+            DB::commit();
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Slip gaji berhasil dibuat',
+                'data'    => $slip,
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Generate Salary Slip Error: ' . $e->getMessage());
+            return response()->json([
+                'status'  => 'error',
+                'message' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    /**
+     * Generate slip gaji untuk SEMUA karyawan aktif di outlet sekaligus.
+     * POST /outlets/{outletId}/salary-slips/generate-bulk
+     */
+    public function generateSalarySlipBulk(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'period_start' => 'required|date',
+            'period_end'   => 'required|date|after_or_equal:period_start',
+            'cash_book_id' => 'required|integer|exists:outlet_cash_books,id',
+
+            // Data hasil editan preview (opsional — kalau tidak dikirim, dihitung otomatis)
+            'employees'                              => 'nullable|array',
+            'employees.*.employee_id'                => 'required_with:employees|exists:employees,id',
+            'employees.*.base_salary'                => 'nullable|numeric|min:0',
+            'employees.*.overtime_salary'            => 'nullable|numeric|min:0',
+            'employees.*.net_salary'                 => 'nullable|numeric',
+            'employees.*.allowance_details'                        => 'nullable|array',
+            'employees.*.allowance_details.*.salary_component_id'  => 'required_with:employees.*.allowance_details|integer|exists:salary_components,id',
+            'employees.*.allowance_details.*.amount'                => 'required_with:employees.*.allowance_details|numeric',
+            'employees.*.deduction_details'                        => 'nullable|array',
+            'employees.*.deduction_details.*.salary_component_id'  => 'required_with:employees.*.deduction_details|integer|exists:salary_components,id',
+            'employees.*.deduction_details.*.amount'                => 'required_with:employees.*.deduction_details|numeric',
+        ], [
+            'period_start.required' => 'Tanggal awal periode wajib diisi',
+            'period_end.required'   => 'Tanggal akhir periode wajib diisi',
+            'period_end.after_or_equal' => 'Tanggal akhir tidak boleh sebelum tanggal awal',
+            'cash_book_id.required' => 'Buku kas wajib dipilih',
+            'cash_book_id.exists'   => 'Buku kas tidak ditemukan',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Validasi gagal. Periksa kembali data yang dikirim.',
+                'errors'  => $validator->errors()->toArray(),
+            ], 422);
+        }
+
+        $employees = Employee::where('outlet_id', $outletId)
+            ->where('is_active', true)
+            ->get();
+
+        // Index override (hasil editan preview) per employee_id agar cepat dicari
+        $overridesByEmployee = collect($request->employees ?? [])->keyBy('employee_id');
+
+        $created = [];
+        $skipped = [];
+
+        DB::beginTransaction();
+        try {
+            foreach ($employees as $employee) {
+                try {
+                    $override = $overridesByEmployee->get($employee->id);
+
+                    $slip = $this->generateSlipForEmployee(
+                        $employee,
+                        $outletId,
+                        $request->period_start,
+                        $request->period_end,
+                        $request->cash_book_id,
+                        $override // null → dihitung otomatis, ada isi → pakai hasil editan
+                    );
+                    $created[] = $slip;
+                } catch (\Exception $e) {
+                    // Employee ini sudah punya slip di periode ini -> lewati, catat sebagai info
+                    $skipped[] = [
+                        'employee_id'   => $employee->id,
+                        'employee_name' => $employee->name,
+                        'reason'        => $e->getMessage(),
+                    ];
+                }
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => count($created) . ' slip gaji berhasil dibuat' .
+                            (count($skipped) > 0 ? ', ' . count($skipped) . ' dilewati (sudah ada)' : ''),
+                'data'    => [
+                    'created' => $created,
+                    'skipped' => $skipped,
+                ],
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Generate Salary Slip Bulk Error: ' . $e->getMessage());
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Terjadi kesalahan saat generate slip gaji massal',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function previewSalarySlipBulk(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
+            ], 403);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'period_start' => 'required|date',
+            'period_end'   => 'required|date|after_or_equal:period_start',
+        ], [
+            'period_start.required'     => 'Tanggal awal periode wajib diisi',
+            'period_end.required'      => 'Tanggal akhir periode wajib diisi',
+            'period_end.after_or_equal' => 'Tanggal akhir tidak boleh sebelum tanggal awal',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Validasi gagal. Periksa kembali data yang dikirim.',
+                'errors'  => $validator->errors()->toArray(),
+            ], 422);
+        }
+
+        $employees = Employee::where('outlet_id', $outletId)
+            ->where('is_active', true)
+            ->get();
+
+        $preview = $employees->map(function ($employee) use ($request) {
+            return $this->calculateSlipData($employee, $request->period_start, $request->period_end);
+        })->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $preview,
+        ]);
+    }
+
+    public function salarySlipIndex(Request $request, $outletId)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
+            ], 403);
+        }
+
+        $query = SalarySlip::where('outlet_id', $outletId)
+            ->with(['employee:id,name,employee_code,role_id', 'employee.role:id,name']);
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('employee', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%");
+            });
+        }
+
+        $sort = $request->get('sort', 'desc'); // desc = periode terbaru dulu
+        $query->orderBy('period_start', $sort === 'asc' ? 'asc' : 'desc');
+
+        $slips = $query->paginate($request->get('per_page', 20));
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $slips,
+        ]);
+    }
+
+    /**
+     * Detail 1 slip gaji beserta rincian item-nya.
+     * GET /outlets/{outletId}/salary-slips/{id}
+     */
+    public function salarySlipShow($outletId, $id)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
+            ], 403);
+        }
+
+        $slip = SalarySlip::where('outlet_id', $outletId)
+            ->with([
+                'employee:id,name,employee_code,role_id,base_salary_type',
+                'employee.role:id,name',
+                'items', // name, type, duration sudah tersimpan langsung di tiap item
+            ])
+            ->find($id);
+
+        if (!$slip) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Slip gaji tidak ditemukan.',
+            ], 404);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data'   => $slip,
+        ]);
+    }
+
+    /**
+     * Update slip gaji (base salary, overtime, rincian item, cash book, status).
+     * POST /outlets/{outletId}/salary-slips/{id}
+     */
+    public function salarySlipUpdate(Request $request, $outletId, $id)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
+            ], 403);
+        }
+
+        $slip = SalarySlip::where('outlet_id', $outletId)->find($id);
+        if (!$slip) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Slip gaji tidak ditemukan.',
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'cash_book_id'                 => 'nullable|integer|exists:outlet_cash_books,id',
+            'base_salary'                  => 'nullable|numeric|min:0',
+            'overtime_salary'               => 'nullable|numeric|min:0',
+            'status'                        => 'nullable|in:draft,pending,paid',
+            'items'          => 'nullable|array',
+            'items.*.id'     => 'required_with:items|integer|exists:salary_slip_items,id',
+            'items.*.amount' => 'required_with:items|numeric',
+        ], [
+            'cash_book_id.exists' => 'Buku kas tidak ditemukan',
+            'status.in'           => 'Status tidak valid',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Validasi gagal. Periksa kembali data yang dikirim.',
+                'errors'  => $validator->errors()->toArray(),
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($request->filled('cash_book_id')) $slip->cash_book_id = $request->cash_book_id;
+            if ($request->has('base_salary'))     $slip->base_salary = (int) round($request->base_salary);
+            if ($request->has('overtime_salary')) $slip->overtime_salary = (int) round($request->overtime_salary);
+            if ($request->filled('status'))       $slip->status = $request->status;
+
+            if ($request->has('items')) {
+                // Update amount per baris item berdasarkan id (name/type/duration tetap, tidak dihapus-buat-ulang)
+                foreach ($request->items as $itemData) {
+                    SalarySlipItem::where('id', $itemData['id'])
+                        ->where('salary_slip_id', $slip->id)
+                        ->update(['amount' => (int) round($itemData['amount'])]);
+                }
+
+                // Hitung ulang total dari SEMUA item milik slip ini (yang barusan diupdate maupun tidak)
+                $totalAllowance = SalarySlipItem::where('salary_slip_id', $slip->id)->where('type', 'tunjangan')->sum('amount');
+                $totalDeduction = SalarySlipItem::where('salary_slip_id', $slip->id)->where('type', 'potongan')->sum('amount');
+
+                $slip->total_allowance = (int) round($totalAllowance);
+                $slip->total_deduction = (int) round($totalDeduction);
+            }
+
+            $slip->net_salary = $slip->base_salary + $slip->overtime_salary + $slip->total_allowance - $slip->total_deduction;
+            $slip->save();
+
+            DB::commit();
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Slip gaji berhasil diperbarui',
+                'data'    => $slip->load('items.salaryComponent.details', 'employee:id,name,employee_code'),
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Update Salary Slip Error: ' . $e->getMessage());
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Gagal memperbarui slip gaji',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Hapus slip gaji.
+     * DELETE /outlets/{outletId}/salary-slips/{id}
+     */
+    public function salarySlipDestroy($outletId, $id)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
+            ], 403);
+        }
+
+        $slip = SalarySlip::where('outlet_id', $outletId)->find($id);
+        if (!$slip) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Slip gaji tidak ditemukan.',
+            ], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            SalarySlipItem::where('salary_slip_id', $slip->id)->delete();
+            $slip->delete();
+            DB::commit();
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Slip gaji berhasil dihapus',
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Delete Salary Slip Error: ' . $e->getMessage());
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Gagal menghapus slip gaji',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function markSalarySlipPaid($outletId, $id)
+    {
+        if (!$this->checkAccess($outletId)) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Akses ditolak. Anda tidak memiliki izin untuk outlet ini.',
+            ], 403);
+        }
+
+        $slip = SalarySlip::with('employee:id,name')->where('outlet_id', $outletId)->find($id);
+        if (!$slip) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Slip gaji tidak ditemukan.',
+            ], 404);
+        }
+
+        if ($slip->status === SalarySlip::STATUS_PAID) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Slip gaji ini sudah ditandai terbayar sebelumnya.',
+            ], 422);
+        }
+
+        if (!$slip->cash_book_id) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Slip gaji ini tidak memiliki buku kas. Tidak bisa ditandai terbayar.',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            $slip->status = SalarySlip::STATUS_PAID;
+            $slip->save();
+
+            $user       = auth('sanctum')->user();
+            $userId     = $user instanceof \App\Models\User     ? $user->id : null;
+            $employeeId = $user instanceof \App\Models\Employee ? $user->id : null;
+
+            TransactionCashBook::create([
+                'outlet_cash_book_id'    => $slip->cash_book_id,
+                'transaction_payment_id' => null,
+                'outlet_id'              => $outletId,
+                'type'                   => 'out',
+                'amount'                 => $slip->net_salary,
+                'description'            => 'Pembayaran gaji ' . optional($slip->employee)->name
+                    . ' periode ' . $slip->period_start->format('d M Y') . ' - ' . $slip->period_end->format('d M Y'),
+                'transaction_date'       => now()->toDateString(),
+                'created_by_user_id'     => $userId,
+                'created_by_employee_id' => $employeeId,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Slip gaji berhasil ditandai terbayar',
+                'data'    => $slip->fresh(),
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Mark Salary Slip Paid Error: ' . $e->getMessage());
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Gagal menandai slip gaji terbayar',
+                'error'   => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+
 }

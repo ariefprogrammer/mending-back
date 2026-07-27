@@ -24,6 +24,7 @@ class Employee extends Model implements AuthenticatableContract
         'email',
         'password',
         'default_base_salary',
+        'base_salary_type',
         'overtime_salary_per_hour',
         'ktp_image_url',
         'npwp_image_url',
