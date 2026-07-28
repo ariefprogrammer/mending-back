@@ -1087,7 +1087,9 @@ class EmployeeController extends Controller
             }
         }
 
-        $netSalary = $baseSalary + $overtimeSalary + $totalAllowance - $totalDeduction;
+        $bonus = 0; 
+
+        $netSalary = $baseSalary + $overtimeSalary + $bonus + $totalAllowance - $totalDeduction;
 
         return [
             'employee_id'          => $employee->id,
@@ -1098,6 +1100,7 @@ class EmployeeController extends Controller
             'base_salary_type'     => $baseSalaryType,
             'base_salary'          => (int) round($baseSalary),
             'overtime_salary'      => (int) round($overtimeSalary),
+            'bonus'                => $bonus,
             'allowance_details'    => $allowanceDetails,
             'deduction_details'    => $deductionDetails,
             'total_allowance'      => (int) round($totalAllowance),
@@ -1133,6 +1136,7 @@ class EmployeeController extends Controller
         return [
             'base_salary'      => (int) round($override['base_salary'] ?? 0),
             'overtime_salary'  => (int) round($override['overtime_salary'] ?? 0),
+            'bonus'            => (int) round($override['bonus'] ?? 0),
             'total_allowance'  => (int) round($totalAllowance),
             'total_deduction'  => (int) round($totalDeduction),
             'net_salary'       => (int) round($override['net_salary'] ?? 0),
@@ -1168,6 +1172,7 @@ class EmployeeController extends Controller
             $payload = [
                 'base_salary'     => $calculated['base_salary'],
                 'overtime_salary' => $calculated['overtime_salary'],
+                'bonus'           => $calculated['bonus'],
                 'total_allowance' => $calculated['total_allowance'],
                 'total_deduction' => $calculated['total_deduction'],
                 'net_salary'      => $calculated['net_salary'],
@@ -1183,6 +1188,7 @@ class EmployeeController extends Controller
             'period_end'       => $periodEnd,
             'base_salary'      => $payload['base_salary'],
             'overtime_salary'  => $payload['overtime_salary'],
+            'bonus'            => $payload['bonus'],
             'total_commission' => 0,
             'total_allowance'  => $payload['total_allowance'],
             'total_deduction'  => $payload['total_deduction'],
@@ -1499,6 +1505,7 @@ class EmployeeController extends Controller
             'cash_book_id'                 => 'nullable|integer|exists:outlet_cash_books,id',
             'base_salary'                  => 'nullable|numeric|min:0',
             'overtime_salary'               => 'nullable|numeric|min:0',
+            'bonus'                         => 'nullable|numeric|min:0',
             'status'                        => 'nullable|in:draft,pending,paid',
             'items'          => 'nullable|array',
             'items.*.id'     => 'required_with:items|integer|exists:salary_slip_items,id',
@@ -1521,6 +1528,7 @@ class EmployeeController extends Controller
             if ($request->filled('cash_book_id')) $slip->cash_book_id = $request->cash_book_id;
             if ($request->has('base_salary'))     $slip->base_salary = (int) round($request->base_salary);
             if ($request->has('overtime_salary')) $slip->overtime_salary = (int) round($request->overtime_salary);
+            if ($request->has('bonus'))           $slip->bonus = (int) round($request->bonus);
             if ($request->filled('status'))       $slip->status = $request->status;
 
             if ($request->has('items')) {
@@ -1539,7 +1547,7 @@ class EmployeeController extends Controller
                 $slip->total_deduction = (int) round($totalDeduction);
             }
 
-            $slip->net_salary = $slip->base_salary + $slip->overtime_salary + $slip->total_allowance - $slip->total_deduction;
+            $slip->net_salary = $slip->base_salary + $slip->overtime_salary + ($slip->bonus ?? 0) + $slip->total_allowance - $slip->total_deduction;
             $slip->save();
 
             DB::commit();
