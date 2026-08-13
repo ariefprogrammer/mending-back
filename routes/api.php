@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\CustomerBalanceMutationController;
 use App\Http\Controllers\Api\V1\TransactionReportController;
 use App\Http\Controllers\Api\V1\CustomerItemReportController;
 use App\Http\Controllers\Api\V1\EmployeeWarningLetterController;
+use App\Http\Controllers\NotaController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {

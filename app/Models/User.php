@@ -8,6 +8,8 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens; 
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 
 class User extends Authenticatable
@@ -49,6 +51,33 @@ class User extends Authenticatable
     public function outlets()
     {
         return $this->hasMany(Outlet::class, 'user_id');
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(Subscription::class);
+    }
+
+    public function currentSubscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class)
+            ->where('status', 'active')
+            ->latestOfMany('started_at');
+    }
+
+    public function isOnFreePlan(): bool
+    {
+        return $this->currentSubscription?->plan?->slug === 'free';
+    }
+
+    public function isPremium(): bool
+    {
+        return $this->currentSubscription?->plan?->slug === 'premium';
+    }
+
+    public function isOnTrial(): bool
+    {
+        return $this->currentSubscription?->isOnTrial() ?? false;
     }
 
 }
