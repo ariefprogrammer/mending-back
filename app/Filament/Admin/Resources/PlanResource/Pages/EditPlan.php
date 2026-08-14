@@ -16,4 +16,15 @@ class EditPlan extends EditRecord
             Actions\DeleteAction::make(),
         ];
     }
+
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        if (empty($data['restrict_menus'])) {
+            $data['allowed_menus'] = null;
+        }
+
+        unset($data['restrict_menus']);
+
+        return $data;
+    }
 }

@@ -44,6 +44,34 @@ class PlanResource extends Resource
                 ->numeric()
                 ->helperText('Kosongkan jika paket ini bukan trial'),
 
+            Forms\Components\Toggle::make('restrict_menus')
+                ->label('Batasi akses menu')
+                ->helperText('Kalau dimatikan, paket ini bisa akses semua menu')
+                ->live()
+                ->afterStateHydrated(function (Forms\Components\Toggle $component, $record) {
+                    $component->state($record ? ! is_null($record->allowed_menus) : false);
+                }),
+
+            Forms\Components\CheckboxList::make('allowed_menus')
+                ->label('Menu yang Boleh Diakses')
+                ->options([
+                    'pelanggan' => 'Pelanggan',
+                    'deposit' => 'Deposit',
+                    'layanan' => 'Layanan',
+                    'karyawan' => 'Karyawan',
+                    'kehadiran' => 'Kehadiran',
+                    'aset' => 'Aset',
+                    'bahan' => 'Bahan',
+                    'pemasukan' => 'Pemasukan',
+                    'pengeluaran' => 'Pengeluaran',
+                    'buku_kas' => 'Buku Kas',
+                    'formulir' => 'Formulir',
+                    'outlet' => 'Outlet',
+                ])
+                ->columns(2)
+                ->visible(fn (Forms\Get $get) => $get('restrict_menus'))
+                ->dehydrated(fn (Forms\Get $get) => $get('restrict_menus')),
+
             Forms\Components\TextInput::make('price')
                 ->label('Harga')
                 ->numeric()

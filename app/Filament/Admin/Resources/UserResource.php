@@ -115,6 +115,45 @@ class UserResource extends Resource
                     ->requiresConfirmation()
                     ->action(fn (User $record) => static::switchPlan($record, 'free')),
 
+                Tables\Actions\Action::make('renewSubscription')
+                    ->label('Perpanjang Langganan')
+                    ->icon('heroicon-o-calendar-days')
+                    ->color('info')
+                    ->visible(fn (User $record) => $record->currentSubscription?->plan?->slug === 'premium')
+                    ->form([
+                        Forms\Components\Select::make('duration_days')
+                            ->label('Durasi Perpanjangan')
+                            ->options([
+                                30 => '1 Bulan (30 hari)',
+                                90 => '3 Bulan (90 hari)',
+                                365 => '1 Tahun (365 hari)',
+                            ])
+                            ->default(30)
+                            ->required(),
+
+                        Forms\Components\TextInput::make('note')
+                            ->label('Catatan (opsional)')
+                            ->placeholder('Contoh: No. invoice / metode pembayaran'),
+                    ])
+                    ->action(function (User $record, array $data) {
+                        $subscription = $record->currentSubscription;
+
+                        if (! $subscription) {
+                            Notification::make()
+                                ->title('Tidak ada langganan aktif untuk diperpanjang')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        $subscription->extend((int) $data['duration_days'], $data['note'] ?? null);
+
+                        Notification::make()
+                            ->title('Langganan berhasil diperpanjang')
+                            ->success()
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make(),
             ]);
     }
@@ -129,6 +168,7 @@ class UserResource extends Resource
             'plan_id' => $plan->id,
             'status' => 'active',
             'trial_ends_at' => $plan->trial_days ? now()->addDays($plan->trial_days) : null,
+            'ends_at' => $plan->slug === 'premium' ? now()->addDays(30) : null,
             'started_at' => now(),
         ]);
 
@@ -142,6 +182,7 @@ class UserResource extends Resource
     {
         return [
             RelationManagers\SubscriptionsRelationManager::class,
+            RelationManagers\SubscriptionRenewalsRelationManager::class,
         ];
     }
 

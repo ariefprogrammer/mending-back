@@ -11,6 +11,7 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class User extends Authenticatable
 {
@@ -78,6 +79,11 @@ class User extends Authenticatable
     public function isOnTrial(): bool
     {
         return $this->currentSubscription?->isOnTrial() ?? false;
+    }
+
+    public function subscriptionRenewals(): HasManyThrough
+    {
+        return $this->hasManyThrough(SubscriptionRenewal::class, Subscription::class);
     }
 
 }

@@ -43,7 +43,18 @@ class AuthController extends Controller
             'owner_id' => $uniqueOwnerId,
         ]);
 
-        // 4. Generate Token (Sanctum)
+        // 4. Beri plan Free sebagai default untuk owner baru
+        $defaultPlan = \App\Models\Plan::where('is_default', true)->first();
+
+        if ($defaultPlan) {
+            $user->subscriptions()->create([
+                'plan_id' => $defaultPlan->id,
+                'status' => 'active',
+                'started_at' => now(),
+            ]);
+        }
+
+        // 5. Generate Token (Sanctum)
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -93,6 +104,19 @@ class AuthController extends Controller
             $outlet = $user->outlets()->first();
             $outletId = $outlet ? $outlet->id : null;
 
+            // ✅ Ambil info plan aktif
+            $subscription = $user->currentSubscription()->with('plan')->first();
+            $planData = $subscription ? [
+                'plan_slug'               => $subscription->plan->slug,
+                'plan_name'               => $subscription->plan->name,
+                'transaction_limit'       => $subscription->plan->transaction_limit,
+                'remaining_transactions'  => $subscription->remainingTransactions(),
+                'trial_ends_at'           => $subscription->trial_ends_at?->toIso8601String(),
+                'ends_at'                 => $subscription->ends_at?->toIso8601String(),
+                'is_trial_expired'        => $subscription->isTrialExpired(),
+                'allowed_menus'           => $subscription->plan->allowed_menus,
+            ] : null;
+
             return response()->json([
                 'status'  => 'success',
                 'message' => 'Login berhasil',
@@ -109,6 +133,7 @@ class AuthController extends Controller
                         'id'   => $outlet->id,
                         'name' => $outlet->name,
                     ] : null,
+                    'subscription' => $planData,
                     'access_token' => $token,
                     'token_type'   => 'Bearer',
                 ]
@@ -127,6 +152,25 @@ class AuthController extends Controller
         if ($employee && Hash::check($request->password, $employee->password)) {
             $employee->tokens()->delete();
             $token = $employee->createToken('employee_auth_token')->plainTextToken;
+
+            // Ambil info plan lewat outlet -> owner
+            $planData = null;
+            if ($employee->outlet && $employee->outlet->user) {
+                $subscription = $employee->outlet->user->currentSubscription()->with('plan')->first();
+
+                if ($subscription) {
+                    $planData = [
+                        'plan_slug'               => $subscription->plan->slug,
+                        'plan_name'               => $subscription->plan->name,
+                        'transaction_limit'       => $subscription->plan->transaction_limit,
+                        'remaining_transactions'  => $subscription->remainingTransactions(),
+                        'trial_ends_at'           => $subscription->trial_ends_at?->toIso8601String(),
+                        'ends_at'                 => $subscription->ends_at?->toIso8601String(),
+                        'is_trial_expired'        => $subscription->isTrialExpired(),
+                        'allowed_menus'           => $subscription->plan->allowed_menus,
+                    ];
+                }
+            }
 
             return response()->json([
                 'status'  => 'success',
@@ -153,6 +197,7 @@ class AuthController extends Controller
                         'id'   => $employee->outlet->id,
                         'name' => $employee->outlet->name,
                     ] : null,
+                    'subscription'  => $planData,
                     'outlet_id'     => $employee->outlet_id,     // outlet_id di root data
                     'access_token'  => $token,
                     'token_type'    => 'Bearer',

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Subscription extends Model
 {
@@ -66,5 +67,25 @@ class Subscription extends Model
         }
 
         return $this->remainingTransactions() <= 0;
+    }
+
+    public function renewals(): HasMany
+    {
+        return $this->hasMany(SubscriptionRenewal::class);
+    }
+
+    public function extend(int $days, ?string $note = null): SubscriptionRenewal
+    {
+        $from = ($this->ends_at && $this->ends_at->isFuture()) ? $this->ends_at : now();
+        $until = $from->copy()->addDays($days);
+
+        $this->update(['ends_at' => $until]);
+
+        return $this->renewals()->create([
+            'duration_days' => $days,
+            'extended_from' => $from,
+            'extended_until' => $until,
+            'note' => $note,
+        ]);
     }
 }

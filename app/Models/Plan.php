@@ -16,6 +16,7 @@ class Plan extends Model
         'slug',
         'transaction_limit',
         'trial_days',
+        'allowed_menus',
         'price',
         'is_default',
         'is_active',
@@ -24,6 +25,7 @@ class Plan extends Model
     protected $casts = [
         'transaction_limit' => 'integer',
         'trial_days' => 'integer',
+        'allowed_menus' => 'array',
         'price' => 'decimal:2',
         'is_default' => 'boolean',
         'is_active' => 'boolean',
@@ -37,5 +39,19 @@ class Plan extends Model
     public function isUnlimited(): bool
     {
         return is_null($this->transaction_limit);
+    }
+
+    public function hasUnlimitedMenus(): bool
+    {
+        return is_null($this->allowed_menus);
+    }
+
+    public function canAccessMenu(string $menuKey): bool
+    {
+        if ($this->hasUnlimitedMenus()) {
+            return true;
+        }
+
+        return in_array($menuKey, $this->allowed_menus ?? [], true);
     }
 }

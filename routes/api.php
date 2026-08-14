@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\V1\CustomerBalanceMutationController;
 use App\Http\Controllers\Api\V1\TransactionReportController;
 use App\Http\Controllers\Api\V1\CustomerItemReportController;
 use App\Http\Controllers\Api\V1\EmployeeWarningLetterController;
+use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\NotaController;
 use Illuminate\Support\Facades\Route;
 
@@ -75,6 +76,7 @@ Route::prefix('v1')->group(function () {
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/subscription/status', [SubscriptionController::class, 'status']);
 
         // wilayah - global
         Route::prefix('regions')->group(function () {
