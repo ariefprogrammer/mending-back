@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Kelurahan extends Model
 {
-    protected $fillable = ['kecamatan_id', 'name'];
+    protected $fillable = ['kecamatan_id', 'code', 'name'];
 
     public function kecamatan(): BelongsTo
     {

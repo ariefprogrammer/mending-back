@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Province extends Model
 {
-    protected $fillable = ['name'];
+    protected $fillable = ['code', 'name'];
 
     public function kabupatens(): HasMany
     {

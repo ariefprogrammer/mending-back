@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Kabupaten extends Model
 {
-    protected $fillable = ['province_id', 'name'];
+    protected $fillable = ['province_id', 'code', 'name'];
 
     public function province(): BelongsTo
     {
