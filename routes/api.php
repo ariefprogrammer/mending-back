@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\V1\CustomerItemReportController;
 use App\Http\Controllers\Api\V1\EmployeeWarningLetterController;
 use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\ProfileController;
+use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\NotaController;
 use Illuminate\Support\Facades\Route;
 
@@ -82,6 +83,8 @@ Route::prefix('v1')->group(function () {
         // Profile (owner & employee)
         Route::get('/profile', [ProfileController::class, 'index']);
         Route::put('/profile', [ProfileController::class, 'updateOwner']);
+
+        Route::get('/settings/general', [SettingController::class, 'general']);
 
         // wilayah - global
         Route::prefix('regions')->group(function () {
